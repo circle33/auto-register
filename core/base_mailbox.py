@@ -62,14 +62,14 @@ def create_mailbox(provider: str, extra: dict = None, proxy: str = None) -> 'Bas
             proxy=proxy,
         )
     else:  # laoudo
-        return LaoудоMailbox(
+        return LaoudoMailbox(
             auth_token=extra.get("laoudo_auth", ""),
             email=extra.get("laoudo_email", ""),
             account_id=extra.get("laoudo_account_id", ""),
         )
 
 
-class LaoудоMailbox(BaseMailbox):
+class LaoudoMailbox(BaseMailbox):
     """laoudo.com 邮箱服务"""
     def __init__(self, auth_token: str, email: str, account_id: str):
         self.auth = auth_token
@@ -237,7 +237,7 @@ class TempMailLolMailbox(BaseMailbox):
             except Exception:
                 pass
             time.sleep(3)
-        return ""
+        raise TimeoutError(f"等待验证码超时 ({timeout}s)")
 
 
 class DuckMailMailbox(BaseMailbox):
@@ -323,7 +323,7 @@ class DuckMailMailbox(BaseMailbox):
             except Exception:
                 pass
             time.sleep(3)
-        return ""
+        raise TimeoutError(f"等待验证码超时 ({timeout}s)")
 
 
 class CFWorkerMailbox(BaseMailbox):
@@ -411,7 +411,7 @@ class CFWorkerMailbox(BaseMailbox):
             except Exception:
                 pass
             time.sleep(3)
-        return ""
+        raise TimeoutError(f"等待验证码超时 ({timeout}s)")
 
 
 class MoeMailMailbox(BaseMailbox):
@@ -510,7 +510,7 @@ class MoeMailMailbox(BaseMailbox):
             except Exception:
                 pass
             time.sleep(3)
-        return ""
+        raise TimeoutError(f"等待验证码超时 ({timeout}s)")
 
 
 class FreemailMailbox(BaseMailbox):
@@ -587,4 +587,4 @@ class FreemailMailbox(BaseMailbox):
             except Exception:
                 pass
             time.sleep(3)
-        return ""
+        raise TimeoutError(f"等待验证码超时 ({timeout}s)")
