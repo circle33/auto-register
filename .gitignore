@@ -58,3 +58,6 @@ docs/
 # AI 工具
 AGENTS.md
 .claude/
+
+# 敏感文件
+*.har
