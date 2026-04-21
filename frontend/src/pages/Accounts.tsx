@@ -324,7 +324,7 @@ function RegisterModal({
     onDone()
   }
 
-  return (
+  const dialog = (
     <div className="dialog-backdrop" onClick={!taskId ? onClose : undefined}>
       <div className="dialog-panel dialog-panel-md flex flex-col"
            onClick={e => e.stopPropagation()} style={{maxHeight: '88vh'}}>
@@ -448,6 +448,8 @@ function RegisterModal({
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(dialog, document.body) : dialog
 }
 
 // ── 新增账号弹框 ─────────────────────────────────────────
@@ -1472,21 +1474,21 @@ export default function Accounts() {
   const verificationBacked = accounts.filter(acc => Boolean(getVerificationMailbox(acc)?.email)).length
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       {detail && <DetailModal acc={detail} onClose={() => setDetail(null)} onSave={() => { setDetail(null); load() }} />}
       {showImport && <ImportModal platform={tab} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); load() }} />}
       {showAdd && <AddModal platform={tab} onClose={() => setShowAdd(false)} onDone={() => { setShowAdd(false); load() }} />}
       {showRegister && <RegisterModal platform={tab} platformMeta={platformsMap[tab]} onClose={() => setShowRegister(false)} onDone={() => load()} />}
       {actionResult && <ActionResultModal title={actionResult.title} payload={actionResult.payload} onClose={() => setActionResult(null)} />}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <WorkspaceMetric label="账号数" value={total} icon={WalletCards} />
         <WorkspaceMetric label="验证码邮箱" value={verificationBacked} icon={Inbox} />
         <WorkspaceMetric label="已订阅" value={visibleSubscribed} icon={ShieldCheck} />
         <WorkspaceMetric label="可操作" value={linkedCashier} icon={ScanSearch} />
       </div>
 
-      <Card className="bg-[var(--bg-pane)]/60">
+      <Card className="shrink-0 bg-[var(--bg-pane)]/60">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -1590,14 +1592,13 @@ export default function Accounts() {
         </div>
       </Card>
 
-      <Card className="overflow-hidden p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
-          <div>
+      <Card className="min-h-0 flex-1 overflow-hidden p-0">
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="shrink-0 border-b border-[var(--border)] px-5 py-4">
             <div className="text-sm font-medium text-[var(--text-primary)]">{platformLabel} 账号清单</div>
           </div>
-        </div>
-        <div className="glass-table-wrap overflow-x-hidden">
-        <table className="table-fixed w-full text-sm">
+          <div className="glass-table-wrap min-h-0 flex-1 overflow-auto">
+        <table className="table-fixed w-full min-w-[1180px] text-sm">
           <colgroup>
             <col className="w-10" />
             <col className="w-[31%]" />
@@ -1607,9 +1608,9 @@ export default function Accounts() {
             <col className="w-[10%]" />
             <col className="w-[16%]" />
           </colgroup>
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-[var(--border)] text-[var(--text-muted)]">
-              <th className="px-4 py-2.5 text-left w-10">
+              <th className="w-10 bg-[var(--bg-card)] px-4 py-2.5 text-left">
                 <input
                   type="checkbox"
                   checked={allSelectedOnPage}
@@ -1617,12 +1618,12 @@ export default function Accounts() {
                   className="checkbox-accent"
                 />
               </th>
-              <th className="px-4 py-2.5 text-left">邮箱</th>
-              <th className="px-4 py-2.5 text-left">密码</th>
-              <th className="px-4 py-2.5 text-left">状态</th>
-              <th className="px-4 py-2.5 text-left">试用链接</th>
-              <th className="px-4 py-2.5 text-left">注册时间</th>
-              <th className="px-4 py-2.5 text-right">操作</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-left">邮箱</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-left">密码</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-left">状态</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-left">试用链接</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-left">注册时间</th>
+              <th className="bg-[var(--bg-card)] px-4 py-2.5 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1721,6 +1722,7 @@ export default function Accounts() {
             ))}
           </tbody>
         </table>
+          </div>
         </div>
       </Card>
     </div>

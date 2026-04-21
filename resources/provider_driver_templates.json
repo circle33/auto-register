@@ -191,6 +191,26 @@
         { "key": "sms_activate_api_key", "label": "API Key", "secret": true, "category": "auth" },
         { "key": "sms_activate_country", "label": "默认国家", "placeholder": "ru", "default_value": "ru", "category": "identity" }
       ]
+    },
+    {
+      "provider_type": "sms",
+      "provider_key": "herosms",
+      "driver_type": "herosms_api",
+      "label": "HeroSMS",
+      "description": "HeroSMS 接码服务，支持 OpenAI/ChatGPT add-phone 验证、短信重发、事件去重和 20 分钟号码复用。",
+      "default_auth_mode": "api_key",
+      "auth_modes": [
+        { "value": "api_key", "label": "API Key" }
+      ],
+      "fields": [
+        { "key": "herosms_api_key", "label": "API Key", "secret": true, "category": "auth" },
+        { "key": "sms_service", "label": "服务代码", "placeholder": "dr", "default_value": "dr", "category": "identity" },
+        { "key": "sms_country", "label": "国家 ID", "placeholder": "187", "default_value": "187", "category": "identity" },
+        { "key": "herosms_max_price", "label": "最高单价", "placeholder": "-1 表示不限制", "default_value": "-1", "category": "connection" },
+        { "key": "register_reuse_phone_to_max", "label": "复用号码直到上限", "placeholder": "true", "default_value": "true", "category": "connection" },
+        { "key": "register_phone_extra_max", "label": "额外成功上限", "placeholder": "3", "default_value": "3", "category": "connection" },
+        { "key": "register_phone_success_max", "label": "单号成功上限", "placeholder": "3", "default_value": "3", "category": "connection" }
+      ]
     }
   ],
   "proxy": [

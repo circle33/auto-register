@@ -18,7 +18,7 @@ class ConfigRepository:
 
     def get_allowed_keys(self) -> set[str]:
         keys = set(self.BASE_KEYS)
-        for provider_type in ("mailbox", "captcha"):
+        for provider_type in ("mailbox", "captcha", "sms"):
             for definition in self.definitions.list_by_type(provider_type, enabled_only=False):
                 for field in definition.get_fields():
                     field_key = str(field.get("key") or "").strip()
