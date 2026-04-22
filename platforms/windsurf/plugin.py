@@ -139,22 +139,15 @@ class WindsurfPlatform(BasePlatform):
     def get_platform_actions(self) -> list:
         return [
             {"id": "get_account_state", "label": "查询账号状态/额度", "params": []},
-            {"id": "generate_trial_link", "label": "生成 Pro Trial 链接", "params": [
+            {"id": "check_trial_eligibility", "label": "检查 Pro Trial 资格", "params": []},
+            {"id": "payment_link", "label": "生成 Pro Trial Stripe 链接（自动打码）", "params": [
                 {"key": "turnstile_token", "label": "Turnstile Token（可空，自动打码）", "type": "text"},
             ]},
-            {"id": "payment_link", "label": "生成 Pro Trial Stripe 链接", "params": [
-                {"key": "turnstile_token", "label": "Turnstile Token（可空，自动打码）", "type": "text"},
-                {"key": "timeout", "label": "浏览器等待秒数（默认 120）", "type": "number"},
-            ]},
-            {"id": "payment_link_browser", "label": "浏览器页面生成 Pro Trial Stripe 链接", "params": [
+            {"id": "payment_link_browser", "label": "生成 Pro Trial Stripe 链接（浏览器）", "params": [
                 {"key": "turnstile_token", "label": "Turnstile Token（可空，自动打码）", "type": "text"},
                 {"key": "timeout", "label": "等待秒数（默认 180）", "type": "number"},
                 {"key": "headless", "label": "无头模式", "type": "text", "options": ["false", "true"]},
             ]},
-            {"id": "generate_trial_link_browser", "label": "浏览器辅助生成 Pro Trial 链接", "params": [
-                {"key": "timeout", "label": "等待 Turnstile 秒数（默认 180）", "type": "number"},
-            ]},
-            {"id": "check_trial_eligibility", "label": "检查 Pro Trial 资格", "params": []},
         ]
 
     def execute_action(self, action_id: str, account: Account, params: dict) -> dict:
@@ -229,20 +222,11 @@ class WindsurfPlatform(BasePlatform):
             turnstile_token = str(params.get("turnstile_token") or "").strip()
             if not turnstile_token:
                 try:
-                    if action_id == "generate_trial_link_browser":
-                        from platforms.windsurf.browser_register import solve_turnstile_in_headed_browser
-
-                        turnstile_token = solve_turnstile_in_headed_browser(
-                            proxy=self.config.proxy if self.config else None,
-                            timeout=int(params.get("timeout") or 180),
-                            log_fn=self.log,
-                        )
-                    else:
-                        self.log("自动获取 Windsurf Turnstile token...")
-                        turnstile_token = self.solve_turnstile_with_fallback(
-                            f"{WINDSURF_BASE}/billing/individual?plan=9",
-                            WINDSURF_TURNSTILE_SITEKEY,
-                        )
+                    self.log("自动获取 Windsurf Turnstile token...")
+                    turnstile_token = self.solve_turnstile_with_fallback(
+                        f"{WINDSURF_BASE}/pricing",
+                        WINDSURF_TURNSTILE_SITEKEY,
+                    )
                 except Exception as exc:
                     return {
                         "ok": False,
@@ -270,17 +254,36 @@ class WindsurfPlatform(BasePlatform):
                     context["session_token"],
                     account_id=context["account_id"],
                     org_id=context["org_id"],
+                    auth1_token=context.get("auth_token", ""),
                     turnstile_token=turnstile_token,
                 )
             except RuntimeError as exc:
-                if "HTTP 401" not in str(exc) or not context.get("auth_token"):
+                if "HTTP 401" not in str(exc):
                     raise
-                self.log("Windsurf SubscribeToPlan 返回 401，尝试用 auth_token 刷新 session 后重试...")
-                refreshed_auth = client.post_auth(context["auth_token"])
+                self.log("Windsurf SubscribeToPlan 返回 401，尝试刷新 session...")
+                # 1) 先尝试 auth_token 刷新
+                if context.get("auth_token"):
+                    try:
+                        refreshed_auth = client.post_auth(context["auth_token"])
+                    except Exception as re_exc:
+                        self.log(f"auth_token 刷新失败: {re_exc}")
+                # 2) auth_token 也失败则用密码重新登录
+                if not refreshed_auth.get("session_token") and str(getattr(account, 'password', '') or '').strip():
+                    self.log("auth_token 刷新失败，尝试用密码重新登录...")
+                    try:
+                        refreshed_auth = client.login_with_password(
+                            str(account.email or ""),
+                            str(account.password),
+                        )
+                    except Exception as login_exc:
+                        self.log(f"密码登录也失败: {login_exc}")
+                if not refreshed_auth.get("session_token"):
+                    raise RuntimeError(f"Windsurf session 刷新失败，原始错误: {exc}") from exc
                 checkout = client.subscribe_to_plan(
-                    refreshed_auth.get("session_token", "") or context["session_token"],
+                    refreshed_auth["session_token"],
                     account_id=refreshed_auth.get("account_id", "") or context["account_id"],
                     org_id=refreshed_auth.get("org_id", "") or context["org_id"],
+                    auth1_token=refreshed_auth.get("auth_token", "") or context.get("auth_token", ""),
                     turnstile_token=turnstile_token,
                 )
             checkout_url = str(checkout.get("checkout_url") or "").strip()

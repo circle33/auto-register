@@ -639,23 +639,34 @@ def _auto_followup_windsurf_payment(
 ) -> None:
     if platform_name != "windsurf":
         return
-    if str(payload.get("executor_type", "") or "").strip() not in {"headless", "headed"}:
-        return
-    if not str(getattr(account, "password", "") or "").strip():
+    executor_type = str(payload.get("executor_type", "") or "").strip()
+    use_browser = executor_type in {"headless", "headed"}
+    if not use_browser:
+        extra_cfg = dict(payload.get("extra") or {})
+        if not _bool_config(extra_cfg.get("auto_payment_link"), True):
+            return
+    if not str(getattr(account, "password", "") or "").strip() and use_browser:
         logger.log("Windsurf 注册后自动升级已跳过: 账号缺少密码", level="error")
         return
     extra = dict(payload.get("extra") or {})
-    params = {
-        "timeout": _int_config(extra.get("windsurf_payment_timeout"), 240),
-        "headless": "true" if _bool_config(extra.get("windsurf_payment_headless"), False) else "false",
-        "payment_channel": "checkout",
-    }
     turnstile_token = str(extra.get("turnstile_token") or "").strip()
-    if turnstile_token:
-        params["turnstile_token"] = turnstile_token
+    if use_browser:
+        action_id = "payment_link_browser"
+        params = {
+            "timeout": _int_config(extra.get("windsurf_payment_timeout"), 240),
+            "headless": "true" if _bool_config(extra.get("windsurf_payment_headless"), False) else "false",
+            "payment_channel": "checkout",
+        }
+        if turnstile_token:
+            params["turnstile_token"] = turnstile_token
+    else:
+        action_id = "payment_link"
+        params = {}
+        if turnstile_token:
+            params["turnstile_token"] = turnstile_token
     logger.log("注册成功，开始自动生成 Windsurf Pro Trial Stripe 链接")
     try:
-        result = platform.execute_action("payment_link_browser", account, params)
+        result = platform.execute_action(action_id, account, params)
     except Exception as exc:
         message = f"Windsurf 注册后自动升级失败: {exc}"
         logger.record_error(message)
