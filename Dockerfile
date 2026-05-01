@@ -25,11 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# 安装 Python 依赖
+# 安装 Python 依赖（包含 Solver 依赖：patchright, quart, rich）
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-# Solver 额外依赖
-RUN pip install --no-cache-dir quart rich
 
 # 安装 patchright/playwright 浏览器（Solver 使用）
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
