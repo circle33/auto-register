@@ -465,17 +465,6 @@ Search the group ID inside QQ. For bugs and feature requests, please use [Issues
 <a href="https://www.rapidproxy.io/?ref=lxf"><b>Free trial →</b></a>
 </td>
 </tr>
-<tr>
-<td width="220" align="center">
-<a href="https://www.swiftproxy.net/?ref=lxf746" target="_blank">
-<img src="assets/swiftproxy.svg" alt="Swiftproxy" width="180" />
-</a>
-</td>
-<td>
-<b><a href="https://www.swiftproxy.net/?ref=lxf746">Swiftproxy</a></b> — 80M+ high-quality residential IPs, stable and highly anonymous connections, dynamic traffic never expires, free trial available.<br/>
-<a href="https://www.swiftproxy.net/?ref=lxf746"><b>Free trial →</b></a>
-</td>
-</tr>
 </table>
 
 ## License

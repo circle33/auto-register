@@ -469,17 +469,6 @@ docker compose build --no-cache && docker compose up -d
 <a href="https://www.rapidproxy.io/?ref=lxf"><b>免费试用 →</b></a>
 </td>
 </tr>
-<tr>
-<td width="220" align="center">
-<a href="https://www.swiftproxy.net/?ref=lxf746" target="_blank">
-<img src="assets/swiftproxy.svg" alt="Swiftproxy" width="180" />
-</a>
-</td>
-<td>
-<b><a href="https://www.swiftproxy.net/?ref=lxf746">Swiftproxy</a></b> — 80M+ 高质量住宅 IP,连接稳定高匿名,动态流量不过期,支持免费测试。<br/>
-<a href="https://www.swiftproxy.net/?ref=lxf746"><b>免费试用 →</b></a>
-</td>
-</tr>
 </table>
 
 ## License

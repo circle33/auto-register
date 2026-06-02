@@ -465,17 +465,6 @@ Tìm mã nhóm trong QQ để tham gia. Báo bug và yêu cầu tính năng vui 
 <a href="https://www.rapidproxy.io/?ref=lxf"><b>Dùng thử miễn phí →</b></a>
 </td>
 </tr>
-<tr>
-<td width="220" align="center">
-<a href="https://www.swiftproxy.net/?ref=lxf746" target="_blank">
-<img src="assets/swiftproxy.svg" alt="Swiftproxy" width="180" />
-</a>
-</td>
-<td>
-<b><a href="https://www.swiftproxy.net/?ref=lxf746">Swiftproxy</a></b> — 80M+ IP dân cư chất lượng cao, kết nối ổn định ẩn danh cao, lưu lượng động không hết hạn, hỗ trợ dùng thử miễn phí.<br/>
-<a href="https://www.swiftproxy.net/?ref=lxf746"><b>Dùng thử miễn phí →</b></a>
-</td>
-</tr>
 </table>
 
 ## Giấy phép
