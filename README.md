@@ -56,13 +56,6 @@ pnpm --prefix frontend build             # 构建前端
 pnpm --prefix frontend lint              # ESLint
 ```
 
-## Docker
-
-```bash
-docker build --build-arg APP_VERSION=1.0.0 -t gpt-auto-register .
-docker run -p 8000:8000 -e APP_PASSWORD=xxx gpt-auto-register
-```
-
 ## 注意事项
 
 - `static/` 是前端构建产物，不要手动编辑
