@@ -7,8 +7,8 @@ import type { ConfigOptionsResponse } from '@/lib/config-options'
 import { Button } from '@/components/ui/button'
 import { Save, RefreshCw, CheckCircle, ExternalLink, Sparkles } from 'lucide-react'
 import Settings from '@/pages/Settings'
-import Proxies from '@/pages/Proxies'
 import AdvancedSettings from '@/components/settings/AdvancedSettings'
+import ClashProxySettings from '@/components/settings/ClashProxySettings'
 
 /* ------------------------------------------------------------------ */
 /*  Tab definitions                                                    */
@@ -323,7 +323,7 @@ function AboutTab() {
       <SettingGroup title="项目信息">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] divide-y divide-[var(--border)]/50">
           <InfoRow label="项目名称" value="Any Auto Register" />
-          <InfoRow label="技术栈" value="FastAPI + React + Electron" />
+          <InfoRow label="技术栈" value="FastAPI + React" />
           <InfoRow label="开源协议" value="AGPL-3.0" />
           <InfoRow
             label="GitHub"
@@ -367,8 +367,8 @@ export default function SettingsPage({
   const [searchParams] = useSearchParams()
   const tab = searchParams.get('tab') || 'general'
 
-  // Config center sub-tabs: register, mailbox, captcha, sms, chatgpt
-  const configTabs = ['register', 'mailbox', 'captcha', 'sms', 'chatgpt']
+  // Config center sub-tabs: register, mailbox, captcha
+  const configTabs = ['register', 'mailbox', 'captcha']
   const isConfigTab = configTabs.includes(tab)
 
   // Page title mapping
@@ -377,9 +377,7 @@ export default function SettingsPage({
     register: '注册策略',
     mailbox: '邮箱服务',
     captcha: '验证服务',
-    sms: '接码服务',
-    proxies: '代理资源',
-    chatgpt: 'ChatGPT',
+    clash: '代理服务',
     advanced: '高级设置',
     about: '关于',
   }
@@ -392,7 +390,7 @@ export default function SettingsPage({
 
       {tab === 'general' && <GeneralTab theme={theme} setTheme={setTheme} />}
       {isConfigTab && <Settings embedded defaultTab={tab} />}
-      {tab === 'proxies' && <Proxies />}
+      {tab === 'clash' && <ClashProxySettings />}
       {tab === 'advanced' && <AdvancedSettings />}
       {tab === 'about' && <AboutTab />}
     </div>

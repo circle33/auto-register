@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter
 from sqlmodel import Session, select, func, text
 
-from core.db import TaskLog, ProxyModel, AccountModel, AccountOverviewModel, engine
+from core.db import TaskLog, AccountModel, AccountOverviewModel, engine
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -105,31 +105,6 @@ def stats_by_day(days: int = 30, platform: str = ""):
         d["success_rate"] = round(d["success"] / d["total"] * 100, 1) if d["total"] else 0
 
     return sorted(daily.values(), key=lambda x: x["date"])
-
-
-@router.get("/by-proxy")
-def stats_by_proxy():
-    """代理成功率排行。"""
-    with Session(engine) as session:
-        proxies = session.exec(
-            select(ProxyModel).order_by(ProxyModel.success_count.desc())
-        ).all()
-
-    return [
-        {
-            "id": p.id,
-            "url": p.url,
-            "region": p.region,
-            "success": p.success_count,
-            "fail": p.fail_count,
-            "total": p.success_count + p.fail_count,
-            "success_rate": round(
-                p.success_count / (p.success_count + p.fail_count) * 100, 1
-            ) if (p.success_count + p.fail_count) else 0,
-            "is_active": p.is_active,
-        }
-        for p in proxies
-    ]
 
 
 @router.get("/errors")

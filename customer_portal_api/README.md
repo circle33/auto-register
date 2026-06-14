@@ -54,15 +54,7 @@ customer_portal_api/
 在仓库根目录执行：
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-如果你只想按照新项目路径安装，也可以：
-
-```bash
-pip install -r customer_portal_api/requirements.txt
+uv sync
 ```
 
 ### 2. 配置环境变量

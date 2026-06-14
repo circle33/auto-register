@@ -113,7 +113,7 @@
 
 ### 桌面版(推荐)
 
-> 🚀 零配置,Electron 内置完整后端 + 前端,双击即用。
+> 🚀 FastAPI 后端 + React 前端，一键部署。
 
 | 平台 | 下载 |
 |------|------|
@@ -164,10 +164,9 @@ docker compose up -d
 git clone https://github.com/lxf746/any-auto-register.git
 cd any-auto-register/account_manager
 
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
-cd frontend && npm install && npm run build && cd ..
+cd frontend && corepack enable && pnpm install && pnpm run build && cd ..
 
 # 可选:浏览器模式需要
 python3 -m playwright install chromium
@@ -282,7 +281,6 @@ python3 -m uvicorn main:app --port 8000
 | 前端 | React + TypeScript + Vite + TailwindCSS |
 | HTTP | curl_cffi(浏览器指纹伪装) |
 | 浏览器自动化 | Playwright / Camoufox |
-| 桌面端 | Electron + Nuitka 打包 |
 
 ## 开发文档
 
@@ -316,7 +314,6 @@ account_manager/
 │   └── proxy/
 ├── services/               # 后台服务(Solver 进程 / 任务执行器)
 ├── customer_portal_api/    # C 端 / 管理端独立 API
-├── electron/               # Electron 桌面端打包
 ├── tests/                  # 测试
 └── frontend/               # React 前端
 ```
@@ -328,7 +325,7 @@ account_manager/
 
 ```bash
 cd frontend
-npm run dev
+pnpm run dev
 # 访问 http://localhost:5173,API 由 Vite 代理转发到后端
 ```
 
@@ -425,7 +422,7 @@ class MyPlatformPlugin(ConfiguredPlatformPlugin):
 如果日志里出现 `src/pages/Accounts.tsx ... TS6133/TS7006`,实际失败点是前端 TypeScript 构建,不是 ARM 或 apt 安装问题。先本地执行:
 
 ```bash
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 确认前端构建通过后再执行:

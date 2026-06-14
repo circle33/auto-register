@@ -73,7 +73,6 @@ class ChatGPTPlatform(BasePlatform):
         self._last_check_overview = {}
         try:
             from platforms.chatgpt.payment import fetch_subscription_status_details
-            from core.proxy_pool import proxy_pool
             class _A: pass
             a = _A()
             extra = account.extra or {}
@@ -82,39 +81,20 @@ class ChatGPTPlatform(BasePlatform):
             a.cookies = extra.get("cookies", "")
             a.extra = extra
 
-            region = str(getattr(account, "region", "") or extra.get("region", "") or "").strip()
-            configured_proxy = self.config.proxy if self.config else None
-            proxy_candidates: list[tuple[str | None, bool]] = []
-            if configured_proxy:
-                proxy_candidates.append((configured_proxy, False))
-            else:
-                pooled_proxy = proxy_pool.get_next(region=region)
-                if pooled_proxy:
-                    proxy_candidates.append((pooled_proxy, True))
-            proxy_candidates.append((None, False))
-
-            for proxy, should_report in proxy_candidates:
-                try:
-                    details = fetch_subscription_status_details(a, proxy=proxy)
-                    if should_report and proxy:
-                        proxy_pool.report_success(proxy)
-                    status = details.get("status")
-                    overview = {
-                        "plan": status,
-                        "plan_name": status,
-                        "check_source": details.get("source"),
-                    }
-                    if isinstance(details.get("usage"), dict):
-                        overview["chatgpt_usage"] = details["usage"]
-                    self._last_check_overview = overview
-                    return status not in ("expired", "invalid", "banned", None)
-                except Exception:
-                    if should_report and proxy:
-                        proxy_pool.report_fail(proxy)
-                    continue
+            proxy = self.config.proxy if self.config else None
+            details = fetch_subscription_status_details(a, proxy=proxy)
+            status = details.get("status")
+            overview = {
+                "plan": status,
+                "plan_name": status,
+                "check_source": details.get("source"),
+            }
+            if isinstance(details.get("usage"), dict):
+                overview["chatgpt_usage"] = details["usage"]
+            self._last_check_overview = overview
+            return status not in ("expired", "invalid", "banned", None)
         except Exception:
             return False
-        return False
 
     def get_last_check_overview(self) -> dict:
         return dict(getattr(self, "_last_check_overview", {}) or {})
@@ -164,7 +144,6 @@ class ChatGPTPlatform(BasePlatform):
                 headless=(ctx.executor_type == "headless"),
                 proxy=ctx.proxy,
                 otp_callback=artifacts.otp_callback,
-                phone_callback=artifacts.phone_callback,
                 log_fn=ctx.log,
             ),
             browser_register_runner=lambda worker, ctx, artifacts: worker.run(

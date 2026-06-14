@@ -7,9 +7,7 @@ import { Users, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const PLATFORM_COLORS: Record<string, string> = {
-  trae: 'text-blue-400',
-  tavily: 'text-purple-400',
-  cursor: 'text-emerald-400',
+  chatgpt: 'text-emerald-400',
 }
 
 const STATUS_VARIANT: Record<string, any> = {
@@ -43,7 +41,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [desktopStates, setDesktopStates] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(false)
-  const desktopPlatforms = ['cursor', 'kiro', 'chatgpt']
+  const desktopPlatforms = ['chatgpt']
 
   const load = async () => {
     setLoading(true)
@@ -55,7 +53,7 @@ export default function Dashboard() {
       setStats(data)
       const desktopEntries = await Promise.all(
         (platforms || [])
-          .filter((item: any) => ['cursor', 'kiro', 'chatgpt'].includes(item.name))
+          .filter((item: any) => ['chatgpt'].includes(item.name))
           .map(async (item: any) => {
             const state = await apiFetch(`/platforms/${item.name}/desktop-state`).catch(() => ({ available: false }))
             return [item.name, { ...state, platform: item.name, display_name: item.display_name }] as const

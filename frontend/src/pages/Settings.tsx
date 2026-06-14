@@ -265,37 +265,8 @@ const TABS: { id: string; label: string; icon: any; sections?: any[] }[] = [
     sections: [],
   },
   {
-    id: 'sms', label: PROVIDER_META.sms.tabLabel, icon: PROVIDER_META.sms.icon,
-    sections: [],
-  },
-  {
     id: 'platform_caps', label: '高级：平台能力', icon: Sliders,
     sections: [],
-  },
-  {
-    id: 'chatgpt', label: 'ChatGPT', icon: Shield,
-    sections: [{
-      section: 'CPA 面板',
-      desc: '注册完成后自动上传到 CPA 管理平台',
-      items: [
-        { key: 'cpa_api_url', label: 'API URL', placeholder: 'https://your-cpa.example.com' },
-        { key: 'cpa_api_key', label: 'API Key', secret: true },
-      ],
-    }, {
-      section: 'Team Manager',
-      desc: '上传到自建 Team Manager 系统',
-      items: [
-        { key: 'team_manager_url', label: 'API URL', placeholder: 'https://your-tm.example.com' },
-        { key: 'team_manager_key', label: 'API Key', secret: true },
-      ],
-    }, {
-      section: 'Any2Api',
-      desc: '同步账号到 Any2Api 服务，用于导出和对接',
-      items: [
-        { key: 'any2api_url', label: 'API URL', placeholder: 'https://your-any2api.example.com' },
-        { key: 'any2api_password', label: 'Password', secret: true },
-      ],
-    }],
   },
 ]
 
@@ -1152,6 +1123,7 @@ export default function Settings({ embedded, defaultTab }: { embedded?: boolean;
   const mailboxCount = providerSettings.mailbox.length
   const captchaCount = providerSettings.captcha.length
   const smsCount = providerSettings.sms.length
+
   const solverLabel = solverRunning === null ? '—' : solverRunning ? '运行中' : '未运行'
   const currentTabMeta = TABS.find(item => item.id === activeTab) ?? TABS[0]
   const currentProviderTab = PROVIDER_TYPES.includes(activeTab as ProviderType) ? activeTab as ProviderType : null

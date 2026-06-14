@@ -1,10 +1,11 @@
 # Stage 1: 构建前端
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Python 后端 + 运行环境
 FROM python:3.12-slim
@@ -25,9 +26,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# 安装 uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # 安装 Python 依赖（包含 Solver 依赖：patchright, quart, rich）
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
 
 # 安装 patchright/playwright 浏览器（Solver 使用）
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright

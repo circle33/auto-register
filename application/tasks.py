@@ -457,46 +457,6 @@ class TaskLogger:
         )
 
 
-def _auto_push_any2api(task_logger: TaskLogger, account) -> None:
-    """注册成功后自动推送账号到 Any2API（如果已配置）。"""
-    try:
-        from core.any2api_sync import push_account_to_any2api
-        push_account_to_any2api(account, log_fn=task_logger.log)
-    except Exception as exc:
-        task_logger.log(f"  [Any2API] 自动推送异常: {exc}", level="warning")
-
-
-def _auto_upload_cpa(task_logger: TaskLogger, account) -> None:
-    if getattr(account, "platform", "") != "chatgpt":
-        return
-    try:
-        from core.config_store import config_store
-
-        cpa_url = config_store.get("cpa_api_url", "")
-        if cpa_url:
-            from platforms.chatgpt.cpa_upload import generate_token_json, upload_to_cpa
-
-            class _AccountProxy:
-                pass
-
-            target = _AccountProxy()
-            target.email = account.email
-            extra = account.extra or {}
-            target.access_token = extra.get("access_token") or account.token
-            target.refresh_token = extra.get("refresh_token", "")
-            target.id_token = extra.get("id_token", "")
-            target.session_token = extra.get("session_token", "")
-            target.user_id = account.user_id or ""
-            target.account_id = account.user_id or ""
-            target.cookies = extra.get("cookies", "")
-
-            token_data = generate_token_json(target)
-            ok, msg = upload_to_cpa(token_data)
-            task_logger.log(f"  [CPA] {'✓ ' + msg if ok else '✗ ' + msg}")
-    except Exception as exc:
-        task_logger.log(f"  [CPA] 自动上传异常: {exc}", level="warning")
-
-
 def _build_platform_instance(platform_name: str, payload: dict[str, Any], logger: TaskLogger, resolved_proxy: str | None = None, shared_mailbox=None):
     from core.base_identity import normalize_identity_provider
     from core.base_mailbox import create_mailbox
@@ -595,103 +555,7 @@ def execute_task(task_id: str) -> None:
     handler(payload, logger)
 
 
-def _resolve_sms_provider_for_task(extra: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    from infrastructure.provider_definitions_repository import ProviderDefinitionsRepository
-    from infrastructure.provider_settings_repository import ProviderSettingsRepository
-
-    settings_repo = ProviderSettingsRepository()
-    definitions_repo = ProviderDefinitionsRepository()
-    provider_key = str(
-        extra.get("sms_provider")
-        or extra.get("phone_provider")
-        or settings_repo.get_default_provider_key("sms")
-        or ""
-    ).strip()
-    if not provider_key:
-        provider_key = "sms_activate" if extra.get("sms_activate_api_key") else ""
-    definition = definitions_repo.get_by_key("sms", provider_key) if provider_key else None
-    settings = settings_repo.resolve_runtime_settings("sms", provider_key, extra) if definition else dict(extra)
-    return provider_key, settings
-
-
-def _bool_config(value: Any, default: bool) -> bool:
-    if value in (None, ""):
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() not in {"0", "false", "no", "off", "否"}
-
-
-def _int_config(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _auto_followup_windsurf_payment(
-    *,
-    platform_name: str,
-    payload: dict[str, Any],
-    platform,
-    account,
-    logger: "TaskLogger",
-) -> None:
-    if platform_name != "windsurf":
-        return
-    executor_type = str(payload.get("executor_type", "") or "").strip()
-    use_browser = executor_type in {"headless", "headed"}
-    if not use_browser:
-        extra_cfg = dict(payload.get("extra") or {})
-        if not _bool_config(extra_cfg.get("auto_payment_link"), True):
-            return
-    if not str(getattr(account, "password", "") or "").strip() and use_browser:
-        logger.log("Windsurf 注册后自动升级已跳过: 账号缺少密码", level="error")
-        return
-    extra = dict(payload.get("extra") or {})
-    turnstile_token = str(extra.get("turnstile_token") or "").strip()
-    if use_browser:
-        action_id = "payment_link_browser"
-        params = {
-            "timeout": _int_config(extra.get("windsurf_payment_timeout"), 240),
-            "headless": "true" if _bool_config(extra.get("windsurf_payment_headless"), False) else "false",
-            "payment_channel": "checkout",
-        }
-        if turnstile_token:
-            params["turnstile_token"] = turnstile_token
-    else:
-        action_id = "payment_link"
-        params = {}
-        if turnstile_token:
-            params["turnstile_token"] = turnstile_token
-    logger.log("注册成功，开始自动生成 Windsurf Pro Trial Stripe 链接")
-    try:
-        result = platform.execute_action(action_id, account, params)
-    except Exception as exc:
-        message = f"Windsurf 注册后自动升级失败: {exc}"
-        logger.record_error(message)
-        logger.log(message, level="error")
-        return
-    if not result.get("ok"):
-        message = f"Windsurf 注册后自动升级失败: {result.get('error') or 'unknown error'}"
-        logger.record_error(message)
-        logger.log(message, level="error")
-        return
-    data = dict(result.get("data") or {})
-    if data:
-        merged_extra = dict(getattr(account, "extra", {}) or {})
-        merged_extra.update(data)
-        account.extra = merged_extra
-        save_account(account)
-    cashier_url = str(data.get("cashier_url") or data.get("url") or "").strip()
-    if cashier_url:
-        logger.log(f"Windsurf 自动升级链接已生成: {cashier_url}")
-        logger.add_cashier_url(cashier_url)
-
-
 def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
-    from core.proxy_pool import proxy_pool
-
     count = max(int(payload.get("count", 1) or 1), 1)
     concurrency = min(max(int(payload.get("concurrency", 1) or 1), 1), count, 5)
     platform_name = str(payload.get("platform", ""))
@@ -699,20 +563,21 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
     password = payload.get("password") or None
     proxy = payload.get("proxy") or None
     extra = dict(payload.get("extra") or {})
-    sms_provider_key, sms_settings = _resolve_sms_provider_for_task(extra)
-    herosms_enabled = sms_provider_key == "herosms" and bool(str(sms_settings.get("herosms_api_key") or "").strip())
-    hero_extra_max = max(_int_config(sms_settings.get("register_phone_extra_max"), 3), 0) if herosms_enabled else 0
-    hero_reuse_to_max = _bool_config(sms_settings.get("register_reuse_phone_to_max"), True) if herosms_enabled else False
-    target_success = count
-    max_success = count + hero_extra_max if herosms_enabled and hero_reuse_to_max else count
-    progress_total = max_success if herosms_enabled else count
 
-    logger.set_progress(0, progress_total)
-    if herosms_enabled:
-        logger.log(
-            f"HeroSMS 模式: 成功目标 {target_success}，失败自动补尝试，"
-            f"号码仍可复用时最多额外成功 {hero_extra_max} 个"
-        )
+    # 如果未显式指定代理，尝试使用 Clash 代理（仅当 API 和代理端口均可用）
+    if not proxy:
+        try:
+            from core.clash_proxy import clash_proxy
+            connected, _ = clash_proxy.test_connection()
+            if connected and clash_proxy.check_proxy_port():
+                proxy = clash_proxy.get_proxy_url()
+                logger.log(f"使用 Clash 代理: {proxy}")
+            elif connected:
+                logger.log("Clash API 已连接，但代理端口未开放 — 将使用直连")
+        except Exception:
+            pass
+
+    logger.set_progress(0, count)
 
     try:
         get(platform_name)
@@ -724,9 +589,7 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
     success = 0
     errors: list[str] = []
 
-    # Pre-create a shared mailbox instance for the entire task to avoid
-    # concurrent initialization issues (e.g. MoeMail auto-registering
-    # multiple provider accounts simultaneously).
+    # Pre-create a shared mailbox instance
     shared_mailbox = None
     try:
         from core.base_identity import normalize_identity_provider
@@ -750,7 +613,7 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
     def _do_one(index: int) -> bool | str:
         if logger.is_cancel_requested():
             return "__cancel_requested__"
-        resolved_proxy = proxy or proxy_pool.get_next()
+        resolved_proxy = proxy
         platform = _build_platform_instance(platform_name, payload, logger, resolved_proxy=resolved_proxy, shared_mailbox=shared_mailbox)
         try:
             logger.log(f"开始注册第 {index + 1}/{count} 个账号")
@@ -758,30 +621,11 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
                 logger.log(f"使用代理: {resolved_proxy}")
             account = platform.register(email=email, password=password)
             save_account(account)
-            _auto_followup_windsurf_payment(
-                platform_name=platform_name,
-                payload=payload,
-                platform=platform,
-                account=account,
-                logger=logger,
-            )
-            if resolved_proxy:
-                proxy_pool.report_success(resolved_proxy)
             logger.record_success()
             logger.log(f"✓ 注册成功: {account.email}")
             _save_task_log(platform_name, account.email, "success")
-            _auto_upload_cpa(logger, account)
-            _auto_push_any2api(logger, account)
-            extra = dict(account.extra or {})
-            overview = dict(extra.get("account_overview") or {})
-            cashier_url = str(extra.get("cashier_url") or overview.get("cashier_url") or "")
-            if cashier_url:
-                logger.log(f"  [升级链接] {cashier_url}")
-                logger.add_cashier_url(cashier_url)
             return True
         except Exception as exc:
-            if resolved_proxy:
-                proxy_pool.report_fail(resolved_proxy)
             error = str(exc)
             logger.record_error(error)
             logger.log(f"✗ 注册失败: {error}", level="error")
@@ -792,40 +636,9 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
         submitted = 0
         completed = 0
         futures: dict[Any, int] = {}
-        max_attempts = max(count if not herosms_enabled else max_success * 3, 1)
-
-        def _hero_phone_alive() -> bool:
-            if not (herosms_enabled and hero_reuse_to_max):
-                return False
-            try:
-                from core.base_sms import is_herosms_phone_cache_alive
-                alive, info = is_herosms_phone_cache_alive(sms_settings)
-                if alive:
-                    logger.log(
-                        "HeroSMS 号码仍可复用: "
-                        f"{str(info.get('phone_number') or '')[:5]}**** "
-                        f"剩余 {int(info.get('remaining_seconds') or 0)} 秒，"
-                        f"已成功 {int(info.get('use_count') or 0)} 次"
-                    )
-                return bool(alive)
-            except Exception:
-                return False
-
-        def _should_submit_more() -> bool:
-            if submitted >= max_attempts or logger.is_cancel_requested():
-                return False
-            if not herosms_enabled:
-                return submitted < count
-            if success + len(futures) >= max_success:
-                return False
-            if success < target_success:
-                return True
-            if success >= max_success:
-                return False
-            return _hero_phone_alive()
 
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            while _should_submit_more() and len(futures) < concurrency:
+            while submitted < count and len(futures) < concurrency:
                 futures[pool.submit(_do_one, submitted)] = submitted
                 submitted += 1
 
@@ -839,8 +652,8 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
                         success += 1
                     elif result != "__cancel_requested__":
                         errors.append(str(result))
-                    logger.set_progress(min(success if herosms_enabled else completed, progress_total), progress_total)
-                while _should_submit_more() and len(futures) < concurrency:
+                    logger.set_progress(min(completed, count), count)
+                while submitted < count and len(futures) < concurrency:
                     futures[pool.submit(_do_one, submitted)] = submitted
                     submitted += 1
                 if logger.is_cancel_requested() and not futures:
@@ -850,15 +663,6 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
         logger.finish(TASK_STATUS_FAILED, error=str(exc))
         return
 
-    if herosms_enabled:
-        logger.set_result_data({
-            "target_count": target_success,
-            "attempts": submitted,
-            "success": success,
-            "fail": len(errors),
-            "extra_success": max(0, success - target_success),
-            "hero_sms_reuse": True,
-        })
     summary = f"完成: 成功 {success} 个, 失败 {len(errors)} 个"
     logger.log(summary, event_type="summary")
     if logger.is_cancel_requested():

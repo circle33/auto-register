@@ -32,14 +32,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-# PyInstaller 静态分析钩子 — 让 modulefinder 跟踪到 Solver 子进程依赖（quart 等）
-# 不会在运行时执行，只是给 PyInstaller 看
-if False:  # pragma: no cover
-    import services.turnstile_solver.api_solver  # noqa: F401
-    import quart  # noqa: F401
-    import patchright  # noqa: F401
-    import rich  # noqa: F401
-
 from api.account_checks import router as account_checks_router
 from api.accounts import router as accounts_router
 from api.actions import router as actions_router
@@ -52,13 +44,12 @@ from api.platform_capabilities import router as platform_capabilities_router
 from api.platforms import router as platforms_router
 from api.provider_definitions import router as provider_definitions_router
 from api.provider_settings import router as provider_settings_router
-from api.proxies import router as proxies_router
-from api.sms import router as sms_router
 from api.stats import router as stats_router
 from api.system import router as system_router
 from api.task_commands import router as task_commands_router
 from api.task_logs import router as task_logs_router
 from api.tasks import router as tasks_router
+from api.clash import router as clash_router
 from core.db import init_db
 from core.registry import load_all
 from providers.registry import load_all as load_providers
@@ -112,14 +103,12 @@ app.include_router(platforms_router, prefix="/api")
 app.include_router(platform_capabilities_router, prefix="/api")
 app.include_router(provider_definitions_router, prefix="/api")
 app.include_router(provider_settings_router, prefix="/api")
-app.include_router(proxies_router, prefix="/api")
-app.include_router(sms_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(task_commands_router, prefix="/api")
 app.include_router(task_logs_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
-
+app.include_router(clash_router, prefix="/api")
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_static_dir):
@@ -134,7 +123,7 @@ if __name__ == "__main__":
     import sys
     import uvicorn
 
-    # 当 backend 被自己以 --solver 参数 spawn 时（PyInstaller 打包模式），
+    # 当 backend 被自己以 --solver 参数 spawn 时，
     # 不启动 FastAPI 主服务，而是作为 Turnstile Solver 子进程运行
     if len(sys.argv) > 1 and sys.argv[1] == "--solver":
         sys.argv = [sys.argv[0]] + sys.argv[2:]  # 把 --solver 摘掉，让 argparse 看到剩余参数

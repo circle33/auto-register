@@ -26,18 +26,7 @@ class TestAny2ApiClient:
         with patch("core.any2api_sync.requests.post", return_value=mock_resp):
             assert client._login() is False
 
-    def test_push_kiro(self):
-        client = Any2ApiClient("http://localhost:8099", "changeme")
-        client._session_cookie = "test-session"
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"account": {"id": "123"}}
-
-        with patch("core.any2api_sync.requests.post", return_value=mock_resp):
-            assert client.push_kiro("test-token", name="test@test.com") is True
-
-    def test_push_cursor(self):
+    def test_push_chatgpt(self):
         client = Any2ApiClient("http://localhost:8099", "changeme")
         client._session_cookie = "test-session"
 
@@ -46,7 +35,7 @@ class TestAny2ApiClient:
         mock_resp.json.return_value = {"config": {}}
 
         with patch("core.any2api_sync.requests.put", return_value=mock_resp):
-            assert client.push_cursor("session-token") is True
+            assert client.push_chatgpt("access-token") is True
 
 
 class TestPushAccountToAny2api:
@@ -54,24 +43,24 @@ class TestPushAccountToAny2api:
         # When any2api_url is not configured, should silently return False
         with patch("core.any2api_sync._get_any2api_config", return_value=("", "")):
             account = MagicMock()
-            account.platform = "kiro"
+            account.platform = "chatgpt"
             assert push_account_to_any2api(account) is False
 
-    def test_kiro_push(self):
+    def test_chatgpt_push(self):
         with patch("core.any2api_sync._get_any2api_config", return_value=("http://localhost:8099", "changeme")):
             account = MagicMock()
-            account.platform = "kiro"
+            account.platform = "chatgpt"
             account.email = "test@test.com"
             account.token = "access-token"
-            account.extra = {"accessToken": "access-token"}
+            account.extra = {"access_token": "access-token"}
 
-            with patch.object(Any2ApiClient, "push_kiro", return_value=True):
+            with patch.object(Any2ApiClient, "push_chatgpt", return_value=True):
                 assert push_account_to_any2api(account) is True
 
     def test_unsupported_platform(self):
         with patch("core.any2api_sync._get_any2api_config", return_value=("http://localhost:8099", "changeme")):
             account = MagicMock()
-            account.platform = "cerebras"
+            account.platform = "unknown"
             account.email = "test@test.com"
             account.extra = {}
 

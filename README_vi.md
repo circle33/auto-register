@@ -113,7 +113,7 @@ Phân nhóm theo trách nhiệm:
 
 ### Desktop (khuyến nghị)
 
-> 🚀 Zero config. Electron đóng gói sẵn cả backend + frontend, nhấp đôi là chạy.
+> 🚀 FastAPI backend + React frontend, triển khai một lần.
 
 | Nền tảng | Tải xuống |
 |------|------|
@@ -164,10 +164,9 @@ Yêu cầu Python 3.11+ / Node.js 18+:
 git clone https://github.com/lxf746/any-auto-register.git
 cd any-auto-register/account_manager
 
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
-cd frontend && npm install && npm run build && cd ..
+cd frontend && corepack enable && pnpm install && pnpm run build && cd ..
 
 # Tùy chọn — cần cho chế độ browser
 python3 -m playwright install chromium
@@ -282,7 +281,6 @@ Nếu không đặt `any2api_url`, tích hợp này sẽ được bỏ qua một
 | Frontend | React + TypeScript + Vite + TailwindCSS |
 | HTTP | curl_cffi (giả lập browser fingerprint) |
 | Browser automation | Playwright / Camoufox |
-| Desktop | Electron + đóng gói Nuitka |
 
 ## Phát triển
 
@@ -312,7 +310,6 @@ account_manager/
 ├── providers/              # provider plugins
 ├── services/               # dịch vụ nền (Solver / task runner)
 ├── customer_portal_api/    # API người dùng + admin
-├── electron/               # đóng gói Electron desktop
 ├── tests/                  # tests
 └── frontend/               # React frontend
 ```
@@ -324,7 +321,7 @@ account_manager/
 
 ```bash
 cd frontend
-npm run dev
+pnpm run dev
 # Mở http://localhost:5173 — Vite proxy API về backend
 ```
 
@@ -421,7 +418,7 @@ Hệ thống quét `platforms/*/plugin.py` khi khởi động và auto-load mọ
 Nếu log build hiện `src/pages/Accounts.tsx ... TS6133/TS7006`, lỗi thật ở build TypeScript của frontend — không phải vấn đề ARM hay apt. Chạy cục bộ trước:
 
 ```bash
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 Sau đó rebuild:

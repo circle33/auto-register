@@ -1282,7 +1282,7 @@ class RegistrationEngine:
 
             # 8. [已注册账号跳过] 注册密码
             if self._is_existing_account:
-                self._log("8. [已注册账号] 跳过密码设置，OTP 已自动发送")
+                self._log("8. [已注册账号] 跳过密码设置")
             else:
                 self._log("8. 注册密码...")
                 password_ok, password = self._register_password()
@@ -1290,16 +1290,11 @@ class RegistrationEngine:
                     result.error_message = "注册密码失败"
                     return result
 
-            # 9. [已注册账号跳过] 发送验证码
-            if self._is_existing_account:
-                self._log("9. [已注册账号] 跳过发送验证码，使用自动发送的 OTP")
-                # 已注册账号的 OTP 在提交表单时已自动发送，记录时间戳
-                self._otp_sent_at = time.time()
-            else:
-                self._log("9. 发送验证码...")
-                if not self._send_verification_code():
-                    result.error_message = "发送验证码失败"
-                    return result
+            # 9. 发送验证码
+            self._log("9. 发送验证码...")
+            if not self._send_verification_code():
+                result.error_message = "发送验证码失败"
+                return result
 
             # 10. 获取验证码
             self._log("10. 等待验证码...")

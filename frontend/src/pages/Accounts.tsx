@@ -1470,10 +1470,7 @@ function ExportMenu({
   const options = [
     { key: 'json', label: '导出 JSON' },
     { key: 'csv', label: '导出 CSV' },
-    { key: 'any2api', label: '导出 Any2Api' },
-    { key: 'sub2api', label: '导出 Sub2Api' },
-    { key: 'cpa', label: '导出 CPA' },
-    ...(platform === 'kiro' ? [{ key: 'kiro-go', label: '导出 Kiro-Go' }] : []),
+    ...([]),
   ]
 
   return (

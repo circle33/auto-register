@@ -6,7 +6,6 @@ from .adapters import BrowserRegistrationAdapter, ProtocolMailboxAdapter, Protoc
 from .helpers import (
     build_link_callback,
     build_otp_callback,
-    build_phone_callbacks,
     ensure_identity_email,
     ensure_mailbox_identity,
     ensure_oauth_browser_reuse,
@@ -64,7 +63,8 @@ class BrowserRegistrationFlow:
                 success_label=self.adapter.link_spec.success_label,
                 preview_chars=self.adapter.link_spec.preview_chars,
             )
-        artifacts.phone_callback, artifacts.phone_cleanup = build_phone_callbacks(ctx, service=ctx.platform_name)
+        artifacts.phone_callback = None
+        artifacts.phone_cleanup = None
 
         try:
             worker = self.adapter.browser_worker_builder(ctx, artifacts) if self.adapter.browser_worker_builder else None
@@ -74,8 +74,7 @@ class BrowserRegistrationFlow:
             artifacts.raw_result = raw
             return self.adapter.result_mapper(ctx, raw)
         finally:
-            if artifacts.phone_cleanup:
-                artifacts.phone_cleanup()
+            pass
 
 
 class ProtocolMailboxFlow:

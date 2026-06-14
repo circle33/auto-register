@@ -113,7 +113,7 @@ Grouped by responsibility:
 
 ### Desktop (recommended)
 
-> 🚀 Zero config. Electron bundles the full backend + frontend, double-click and go.
+> 🚀 FastAPI backend + React frontend, one-click deploy.
 
 | Platform | Download |
 |------|------|
@@ -164,10 +164,9 @@ Requires Python 3.11+ / Node.js 18+:
 git clone https://github.com/lxf746/any-auto-register.git
 cd any-auto-register/account_manager
 
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
-cd frontend && npm install && npm run build && cd ..
+cd frontend && corepack enable && pnpm install && pnpm run build && cd ..
 
 # Optional — required for browser modes
 python3 -m playwright install chromium
@@ -282,7 +281,6 @@ If `any2api_url` is not set, this integration is silently skipped.
 | Frontend | React + TypeScript + Vite + TailwindCSS |
 | HTTP | curl_cffi (browser fingerprint spoofing) |
 | Browser automation | Playwright / Camoufox |
-| Desktop | Electron + Nuitka packaging |
 
 ## Development
 
@@ -312,7 +310,6 @@ account_manager/
 ├── providers/              # provider plugins (mailbox / captcha / SMS / proxy)
 ├── services/               # background services (Solver process / task runner)
 ├── customer_portal_api/    # consumer + admin APIs
-├── electron/               # Electron desktop packaging
 ├── tests/                  # tests
 └── frontend/               # React frontend
 ```
@@ -324,7 +321,7 @@ account_manager/
 
 ```bash
 cd frontend
-npm run dev
+pnpm run dev
 # Open http://localhost:5173 — Vite proxies API requests to the backend
 ```
 
@@ -421,7 +418,7 @@ The system scans `platforms/*/plugin.py` at startup and auto-loads anything regi
 If the build log shows `src/pages/Accounts.tsx ... TS6133/TS7006`, the actual failure is in the frontend TypeScript build — not ARM or apt issues. Run locally first:
 
 ```bash
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 Then rebuild:

@@ -5,7 +5,6 @@ import { getAuthToken, setAuthToken, API, cn } from '@/lib/utils'
 import Dashboard from '@/pages/Dashboard'
 import Accounts from '@/pages/Accounts'
 import Register from '@/pages/Register'
-import Proxies from '@/pages/Proxies'
 import SettingsPage from '@/pages/SettingsPage'
 import TaskHistory from '@/pages/TaskHistory'
 import UpdateBanner from '@/components/UpdateBanner'
@@ -179,9 +178,7 @@ function Sidebar({
                 { label: '注册策略', hash: 'register' },
                 { label: '邮箱服务', hash: 'mailbox' },
                 { label: '验证服务', hash: 'captcha' },
-                { label: '接码服务', hash: 'sms' },
-                { label: '代理资源', hash: 'proxies' },
-                { label: 'ChatGPT', hash: 'chatgpt' },
+                { label: '代理服务', hash: 'clash' },
                 { label: '高级', hash: 'advanced' },
                 { label: '关于', hash: 'about' },
               ].map((item) => {
@@ -268,7 +265,7 @@ function Shell({
             <Route path="/accounts/:platform" element={<Accounts />} />
             <Route path="/register" element={<Register />} />
             <Route path="/history" element={<TaskHistory />} />
-            <Route path="/proxies" element={<Proxies />} />
+
             <Route path="/settings" element={<SettingsPage theme={theme} setTheme={setTheme} />} />
           </Routes>
         </div>
