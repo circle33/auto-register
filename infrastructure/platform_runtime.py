@@ -240,9 +240,7 @@ class PlatformRuntime:
     def list_actions(self, platform: str) -> list[PlatformAction]:
         load_all()
         platform_cls = get(platform)
-        supported = getattr(platform_cls, "supported_executors", ["protocol"])
-        executor_type = supported[0] if supported else "protocol"
-        instance = platform_cls(config=RegisterConfig(executor_type=executor_type))
+        instance = platform_cls(config=RegisterConfig())
         actions = []
         for item in instance.get_platform_actions():
             params = [
@@ -285,9 +283,7 @@ class PlatformRuntime:
                 return ActionExecutionResult(ok=False, error="账号不存在")
 
             platform_cls = get(command.platform)
-            supported = getattr(platform_cls, "supported_executors", ["protocol"])
-            executor_type = supported[0] if supported else "protocol"
-            instance = platform_cls(config=RegisterConfig(executor_type=executor_type))
+            instance = platform_cls(config=RegisterConfig())
             account = build_platform_account(session, model)
             try:
                 result: dict[str, Any] = instance.execute_action(command.action_id, account, command.params)

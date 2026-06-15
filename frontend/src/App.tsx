@@ -7,11 +7,9 @@ import Accounts from '@/pages/Accounts'
 import Register from '@/pages/Register'
 import SettingsPage from '@/pages/SettingsPage'
 import TaskHistory from '@/pages/TaskHistory'
-import CodexConvert from '@/pages/CodexConvert'
 import UpdateBanner from '@/components/UpdateBanner'
 import {
   ChevronRight,
-  FileCode,
   History,
   LayoutDashboard,
   Moon,
@@ -32,7 +30,6 @@ type NavItem = { path: string; label: string; icon: any; exact?: boolean }
 const NAV_ITEMS: NavItem[] = [
   { path: '/', label: '总览', icon: LayoutDashboard, exact: true },
   { path: '/history', label: '任务', icon: History },
-  { path: '/codex-convert', label: 'Codex 转换', icon: FileCode },
 ]
 
 function Sidebar({
@@ -268,7 +265,7 @@ function Shell({
             <Route path="/accounts/:platform" element={<Accounts />} />
             <Route path="/register" element={<Register />} />
             <Route path="/history" element={<TaskHistory />} />
-            <Route path="/codex-convert" element={<CodexConvert />} />
+
             <Route path="/settings" element={<SettingsPage theme={theme} setTheme={setTheme} />} />
           </Routes>
         </div>
