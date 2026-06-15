@@ -41,6 +41,8 @@ def check_accounts_validity(
     log_fn=None,
 ) -> dict[str, int]:
     """Check validity of active accounts. Returns {valid, invalid, error, skipped}."""
+    from core.registry import load_all
+    load_all()
     log = log_fn or logger.info
 
     with Session(engine) as session:
@@ -62,7 +64,9 @@ def check_accounts_validity(
     for acc in targets:
         try:
             platform_cls = get(acc.platform)
-            plugin = platform_cls(config=RegisterConfig())
+            supported = getattr(platform_cls, "supported_executors", ["protocol"])
+            executor_type = supported[0] if supported else "protocol"
+            plugin = platform_cls(config=RegisterConfig(executor_type=executor_type))
             with Session(engine) as session:
                 current = session.get(AccountModel, acc.id)
                 if not current:
@@ -109,6 +113,8 @@ def refresh_expiring_tokens(
     log_fn=None,
 ) -> dict[str, int]:
     """Refresh tokens that are about to expire within `hours_before_expiry` hours."""
+    from core.registry import load_all
+    load_all()
     log = log_fn or logger.info
     results = {"refreshed": 0, "failed": 0, "skipped": 0}
 
@@ -127,7 +133,8 @@ def refresh_expiring_tokens(
             continue
 
         # Currently only ChatGPT has token refresh support
-        if acc.platform != "chatgpt":
+        # ChatGPT / ChatGPT2 都支持 token 刷新
+        if acc.platform not in ("chatgpt", "chatgpt2"):
             results["skipped"] += 1
             continue
 
@@ -138,6 +145,19 @@ def refresh_expiring_tokens(
         }
         refresh_token = credentials.get("refresh_token", "")
         session_token = credentials.get("session_token", "")
+        # chatgpt2 的 session_token 可能嵌在 cookies JSON 里
+        if not session_token and acc.platform == "chatgpt2":
+            cookies_raw = credentials.get("cookies", "")
+            if cookies_raw:
+                try:
+                    import json as _json
+                    cookies_dict = _json.loads(cookies_raw)
+                    for key, val in cookies_dict.items():
+                        if key.startswith("__Secure-next-auth.session-token"):
+                            session_token = str(val or "")
+                            break
+                except Exception:
+                    pass
         if not refresh_token and not session_token:
             results["skipped"] += 1
             continue
@@ -277,6 +297,8 @@ def refresh_and_sync_cpa(
     - 存活账号重新生成 CPA JSON 并上传
     - 封禁账号标记为 disabled
     """
+    from core.registry import load_all
+    load_all()
     log = log_fn or logger.info
     results = {"refreshed": 0, "uploaded": 0, "dead": 0, "skipped": 0, "error": 0}
 
@@ -305,9 +327,12 @@ def refresh_and_sync_cpa(
     except Exception:
         cpa_api_url, cpa_api_key = "", ""
 
-    # 获取所有活跃 chatgpt 账号
+    # 获取所有活跃 chatgpt / chatgpt2 账号
     with Session(engine) as session:
-        q = select(AccountModel).where(AccountModel.platform == platform)
+        q = select(AccountModel).where(
+            AccountModel.platform.in_([platform, "chatgpt2"])
+            if platform == "chatgpt" else AccountModel.platform == platform
+        )
         q = q.order_by(AccountModel.created_at.desc()).limit(limit)
         accounts = session.exec(q).all()
         graphs = load_account_graphs(session, [int(a.id) for a in accounts if a.id])
@@ -326,6 +351,19 @@ def refresh_and_sync_cpa(
             if c.get("scope") == "platform"
         }
         session_token = credentials.get("session_token", "")
+        # chatgpt2 的 session_token 可能嵌在 cookies JSON 里
+        if not session_token and acc.platform == "chatgpt2":
+            cookies_raw = credentials.get("cookies", "")
+            if cookies_raw:
+                try:
+                    import json as _json
+                    cookies_dict = _json.loads(cookies_raw)
+                    for key, val in cookies_dict.items():
+                        if key.startswith("__Secure-next-auth.session-token"):
+                            session_token = str(val or "")
+                            break
+                except Exception:
+                    pass
         if not session_token:
             results["skipped"] += 1
             continue

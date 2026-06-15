@@ -162,6 +162,33 @@ def update_account(account_id: int, body: AccountUpdateRequest):
     return item
 
 
+@router.get("/{account_id}/codex")
+def get_account_codex(account_id: int):
+    """获取单个账号的 Codex auth.json。"""
+    result = exports_service.get_codex_auth_for_account(account_id)
+    if not result:
+        raise HTTPException(404, "账号不存在")
+    return result
+
+
+@router.post("/export/codex")
+def export_accounts_codex(body: BatchExportRequest):
+    """批量导出 Codex auth.json。"""
+    try:
+        artifact = exports_service.export_codex_auth_json(
+            AccountExportSelection(
+                platform=body.platform,
+                ids=body.ids,
+                select_all=body.select_all,
+                status_filter=body.status_filter or "",
+                search_filter=body.search_filter or "",
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _stream_artifact(artifact)
+
+
 @router.delete("/{account_id}")
 def delete_account(account_id: int):
     result = service.delete_account(account_id)
