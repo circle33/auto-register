@@ -50,6 +50,7 @@ PLATFORM_CREDENTIAL_TYPES: dict[str, str] = {
     "wos_session": "token",
     "sso": "cookie",
     "sso_rw": "cookie",
+    "codex_auth_json": "secret",
 }
 
 PRIMARY_TOKEN_WRITE_KEYS: dict[str, str] = {

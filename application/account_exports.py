@@ -356,24 +356,11 @@ class AccountExportsService:
         return _build_codex_auth_for_account(item)
 
     def _load_codex_items(self, selection: AccountExportSelection) -> list[AccountRecord]:
-        """加载支持 Codex 转换的账号（chatgpt + chatgpt2）。"""
-        selection.platform = selection.platform or ""
-        if selection.platform and selection.platform not in (CHATGPT_PLATFORM, "chatgpt2"):
-            raise ValueError("仅支持 ChatGPT / ChatGPT2 账号导出 Codex auth.json")
+        """加载支持 Codex 转换的账号（仅 chatgpt2）。"""
+        selection.platform = selection.platform or "chatgpt2"
+        if selection.platform != "chatgpt2":
+            raise ValueError("仅支持 ChatGPT2 账号导出 Codex auth.json")
 
-        # 如果没指定平台，查 chatgpt + chatgpt2
-        if not selection.platform:
-            items: list[AccountRecord] = []
-            for p in (CHATGPT_PLATFORM, "chatgpt2"):
-                sel = AccountExportSelection(
-                    platform=p,
-                    ids=selection.ids,
-                    select_all=selection.select_all,
-                    status_filter=selection.status_filter or "",
-                    search_filter=selection.search_filter or "",
-                )
-                items.extend(self.repository.select_for_export(sel))
-            return items
         return self.repository.select_for_export(selection)
 
     def _load_chatgpt_items(self, selection: AccountExportSelection) -> list[AccountRecord]:

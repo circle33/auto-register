@@ -27,7 +27,7 @@ interface AccountItem {
 }
 
 function getPlatformLabel(p: string) {
-  return p === 'chatgpt' ? 'ChatGPT' : p === 'chatgpt2' ? 'ChatGPT2' : p
+  return p === 'chatgpt2' ? 'ChatGPT2' : p
 }
 
 export default function CodexConvert() {
@@ -46,11 +46,8 @@ export default function CodexConvert() {
     setLoadingList(true)
     setError(null)
     try {
-      const [c1, c2] = await Promise.all([
-        apiFetch('/accounts?platform=chatgpt&page_size=200'),
-        apiFetch('/accounts?platform=chatgpt2&page_size=200'),
-      ])
-      const all = [...(c1?.items || []), ...(c2?.items || [])]
+      const data = await apiFetch('/accounts?platform=chatgpt2&page_size=200')
+      const all = [...(data?.items || [])]
       setAccounts(all)
     } catch (e: any) {
       console.error('加载账号列表失败', e)
@@ -182,7 +179,7 @@ export default function CodexConvert() {
             </div>
           ) : filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
-              {search ? '无匹配账号' : '暂无 ChatGPT 账号'}
+              {search ? '无匹配账号' : '暂无 ChatGPT2 账号'}
             </p>
           ) : (
             filtered.map(acc => (
@@ -221,7 +218,7 @@ export default function CodexConvert() {
               <div className="text-4xl mb-3">🔑</div>
               <p className="text-sm text-[var(--text-muted)]">选择左侧账号查看 Codex auth.json</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                支持 ChatGPT / ChatGPT2 平台
+                支持 ChatGPT2 平台
               </p>
             </div>
           </div>

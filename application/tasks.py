@@ -497,7 +497,10 @@ def _run_single_account_check(account_id: int, logger: TaskLogger | None = None)
         model = session.get(AccountModel, account_id)
         if not model:
             raise ValueError("账号不存在")
-        plugin = get(model.platform)(config=RegisterConfig())
+        platform_cls = get(model.platform)
+        supported = getattr(platform_cls, "supported_executors", ["protocol"])
+        executor_type = supported[0] if supported else "protocol"
+        plugin = platform_cls(config=RegisterConfig(executor_type=executor_type))
         account = build_platform_account(session, model)
 
     valid = plugin.check_valid(account)

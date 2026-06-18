@@ -268,13 +268,17 @@ class PlatformRuntime:
         """List platform's declared capabilities."""
         load_all()
         platform_cls = get(platform)
-        instance = platform_cls(config=RegisterConfig())
+        supported = getattr(platform_cls, "supported_executors", ["protocol"])
+        executor_type = supported[0] if supported else "protocol"
+        instance = platform_cls(config=RegisterConfig(executor_type=executor_type))
         return instance.get_platform_capabilities()
 
     def get_desktop_state(self, platform: str) -> dict[str, Any]:
         load_all()
         platform_cls = get(platform)
-        instance = platform_cls(config=RegisterConfig())
+        supported = getattr(platform_cls, "supported_executors", ["protocol"])
+        executor_type = supported[0] if supported else "protocol"
+        instance = platform_cls(config=RegisterConfig(executor_type=executor_type))
         return instance.get_desktop_state() or {"available": False}
 
     def execute_action(self, command: ActionExecutionCommand) -> ActionExecutionResult:

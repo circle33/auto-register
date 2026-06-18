@@ -1,0 +1,809 @@
+$ git log --all -p -S "gpt2" --oneline
+[exit 0]
+b4a8a8c Revert "在修改如何获取网页端 refresh key"
+diff --git a/application/account_exports.py b/application/account_exports.py
+index b741fa3..583c0b5 100644
+--- a/application/account_exports.py
++++ b/application/account_exports.py
+@@ -126,127 +126,6 @@ def _chatgpt_export_payload(item: AccountRecord) -> dict:
+     }
+ 
+ 
+-def _build_codex_synthetic_id_token(*, account_id: str, plan_type: str = "",
+-                                     user_id: str = "", email: str = "",
+-                                     expires_at_unix: int = 0) -> str:
+-    """仿造 Codex 可识别的 id_token（alg:none，签名段为 synthetic）。
+-
+-    Codex 读取 id_token 时只 base64 解码 payload、不验签，
+-    所以手工拼一个未签名 JWT 即可。
+-    """
+-    import json as _json
+-    import base64 as _b64
+-    import time as _time
+-
+-    if not account_id:
+-        return ""
+-
+-    def _b64url(obj: dict) -> str:
+-        raw = _json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode()
+-        return _b64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+-
+-    now = int(_time.time())
+-    exp = expires_at_unix if expires_at_unix > now else now + 90 * 24 * 3600
+-    auth: dict = {"chatgpt_account_id": account_id}
+-    if plan_type:
+-        auth["chatgpt_plan_type"] = plan_type
+-    if user_id:
+-        auth["chatgpt_user_id"] = user_id
+-        auth["user_id"] = user_id
+-
+-    payload: dict = {
+-        "iat": now,
+-        "exp": exp,
+-        "https://api.openai.com/auth": auth,
+-    }
+-    if email:
+-        payload["email"] = email
+-
+-    header = _b64url({"alg": "none", "typ": "JWT", "cpa_synthetic": True})
+-    body = _b64url(payload)
+-    return f"{header}.{body}.synthetic"
+-
+-
+-def _build_codex_auth_json(*, access_token: str, account_id: str, plan_type: str = "",
+-                           user_id: str = "", email: str = "", refresh_token: str = "",
+-                           id_token: str = "", expires_at_unix: int = 0) -> str:
+-    """构建 Codex CLI 可用的 auth.json 字符串。"""
+-    import json as _json
+-    from datetime import datetime, timezone as _timezone
+-
+-    resolved_id = id_token or _build_codex_synthetic_id_token(
+-        account_id=account_id,
+-        plan_type=plan_type,
+-        user_id=user_id,
+-        email=email,
+-        expires_at_unix=expires_at_unix,
+-    )
+-    obj = {
+-        "auth_mode": "chatgpt",
+-        "OPENAI_API_KEY": None,
+-        "tokens": {
+-            "id_token": resolved_id,
+-            "access_token": access_token,
+-            "refresh_token": refresh_token or "",
+-            "account_id": account_id,
+-        },
+-        "last_refresh": datetime.now(_timezone.utc).isoformat().replace("+00:00", "Z"),
+-    }
+-    return _json.dumps(obj, ensure_ascii=False, indent=2)
+-
+-
+-def _build_codex_auth_for_account(item: AccountRecord) -> dict:
+-    """从 AccountRecord 提取字段，返回 Codex 转换结果。"""
+-    access_token = _credential_value(item, "access_token", "accessToken")
+-    refresh_token = _credential_value(item, "refresh_token", "refreshToken")
+-    id_token = _credential_value(item, "id_token", "idToken")
+-    account_id = item.user_id or _credential_value(item, "account_id", "chatgpt_account_id") or ""
+-
+-    # 从 JWT payload 提取 plan_type / user_id / expires
+-    payload = _decode_jwt_payload(access_token) if access_token else {}
+-    auth_info = _chatgpt_auth_info(access_token, id_token)
+-    plan_type = str(auth_info.get("chatgpt_plan_type", "") or "")
+-    user_id = str(auth_info.get("chatgpt_user_id", "") or auth_info.get("user_id", "") or "")
+-    email = str(auth_info.get("email", "") or item.email or "")
+-    expires_at_unix = int(payload.get("exp", 0) or 0)
+-
+-    auth_json = _build_codex_auth_json(
+-        access_token=access_token,
+-        account_id=account_id,
+-        plan_type=plan_type,
+-        user_id=user_id,
+-        email=email,
+-        refresh_token=refresh_token,
+-        id_token=id_token,
+-        expires_at_unix=expires_at_unix,
+-    )
+-    # session_token 可能直接存在 credentials 里，也可能嵌在 cookies JSON 里
+-    # cookie 名可能是 __Secure-next-auth.session-token 或带后缀 .0/.1 等
+-    session_token = _credential_value(item, "session_token", "sessionToken")
+-    if not session_token:
+-        cookies_raw = _credential_value(item, "cookies", "cookie")
+-        if cookies_raw:
+-            try:
+-                cookies_dict = json.loads(cookies_raw)
+-                for key, val in cookies_dict.items():
+-                    if key.startswith("__Secure-next-auth.session-token"):
+-                        session_token = str(val or "")
+-                        break
+-            except (json.JSONDecodeError, TypeError):
+-                pass
+-
+-    return {
+-        "account_id": item.id,
+-        "email": item.email,
+-        "platform": item.platform,
+-        "plan_type": plan_type or "unknown",
+-        "access_token_valid": bool(access_token),
+-        "session_token_valid": bool(session_token),
+-        "expires_at_unix": expires_at_unix,
+-        "auth_json": auth_json,
+-    }
+-
+-
+ class AccountExportsService:
+     def __init__(self, repository: AccountsRepository | None = None):
+         self.repository = repository or AccountsRepository()
+@@ -332,50 +211,6 @@ class AccountExportsService:
+             content=output.getvalue(),
+         )
+ 
+-    def export_codex_auth_json(self, selection: AccountExportSelection) -> ExportArtifact:
+-        """导出 Codex auth.json — 单个或批量。"""
+-        items = self._load_codex_items(selection)
+-        results = [_build_codex_auth_for_account(item) for item in items]
+-
+-        if len(results) == 1:
+-            content = results[0]["auth_json"]
+-        else:
+-            content = json.dumps(results, ensure_ascii=False, indent=2)
+-
+-        return ExportArtifact(
+-            filename=_timestamp_name("codex_auth", "json"),
+-            media_type="application/json",
+-            content=content,
+-        )
+-
+-    def get_codex_auth_for_account(self, account_id: int) -> dict | None:
+-        """获取单个账号的 Codex auth.json 数据。"""
+-        item = self.repository.get(account_id)
+-        if not item:
+-            return None
+-        return _build_codex_auth_for_account(item)
+-
+-    def _load_codex_items(self, selection: AccountExportSelection) -> list[AccountRecord]:
+-        """加载支持 Codex 转换的账号（chatgpt + chatgpt2）。"""
+-        selection.platform = selection.platform or ""
+-        if selection.platform and selection.platform not in (CHATGPT_PLATFORM, "chatgpt2"):
+-            raise ValueError("仅支持 ChatGPT / ChatGPT2 账号导出 Codex auth.json")
+-
+-        # 如果没指定平台，查 chatgpt + chatgpt2
+-        if not selection.platform:
+-            items: list[AccountRecord] = []
+-            for p in (CHATGPT_PLATFORM, "chatgpt2"):
+-                sel = AccountExportSelection(
+-                    platform=p,
+-                    ids=selection.ids,
+-                    select_all=selection.select_all,
+-                    status_filter=selection.status_filter or "",
+-                    search_filter=selection.search_filter or "",
+-                )
+-                items.extend(self.repository.select_for_export(sel))
+-            return items
+-        return self.repository.select_for_export(selection)
+-
+     def _load_chatgpt_items(self, selection: AccountExportSelection) -> list[AccountRecord]:
+         selection.platform = selection.platform or CHATGPT_PLATFORM
+         if selection.platform != CHATGPT_PLATFORM:
+diff --git a/core/lifecycle.py b/core/lifecycle.py
+index fe2ee7f..34a7f70 100644
+--- a/core/lifecycle.py
++++ b/core/lifecycle.py
+@@ -41,8 +41,6 @@ def check_accounts_validity(
+     log_fn=None,
+ ) -> dict[str, int]:
+     """Check validity of active accounts. Returns {valid, invalid, error, skipped}."""
+-    from core.registry import load_all
+-    load_all()
+     log = log_fn or logger.info
+ 
+     with Session(engine) as session:
+@@ -64,9 +62,7 @@ def check_accounts_validity(
+     for acc in targets:
+         try:
+             platform_cls = get(acc.platform)
+-            supported = getattr(platform_cls, "supported_executors", ["protocol"])
+-            executor_type = supported[0] if supported else "protocol"
+-            plugin = platform_cls(config=RegisterConfig(executor_type=executor_type))
++            plugin = platform_cls(config=RegisterConfig())
+             with Session(engine) as session:
+                 current = session.get(AccountModel, acc.id)
+                 if not current:
+@@ -113,8 +109,6 @@ def refresh_expiring_tokens(
+     log_fn=None,
+ ) -> dict[str, int]:
+     """Refresh tokens that are about to expire within `hours_before_expiry` hours."""
+-    from core.registry import load_all
+-    load_all()
+     log = log_fn or logger.info
+     results = {"refreshed": 0, "failed": 0, "skipped": 0}
+ 
+@@ -133,8 +127,7 @@ def refresh_expiring_tokens(
+             continue
+ 
+         # Currently only ChatGPT has token refresh support
+-        # ChatGPT / ChatGPT2 都支持 token 刷新
+-        if acc.platform not in ("chatgpt", "chatgpt2"):
++        if acc.platform != "chatgpt":
+             results["skipped"] += 1
+             continue
+ 
+@@ -145,19 +138,6 @@ def refresh_expiring_tokens(
+         }
+         refresh_token = credentials.get("refresh_token", "")
+         session_token = credentials.get("session_token", "")
+-        # chatgpt2 的 session_token 可能嵌在 cookies JSON 里
+-        if not session_token and acc.platform == "chatgpt2":
+-            cookies_raw = credentials.get("cookies", "")
+-            if cookies_raw:
+-                try:
+-                    import json as _json
+-                    cookies_dict = _json.loads(cookies_raw)
+-                    for key, val in cookies_dict.items():
+-                        if key.startswith("__Secure-next-auth.session-token"):
+-                            session_token = str(val or "")
+-                            break
+-                except Exception:
+-                    pass
+         if not refresh_token and not session_token:
+             results["skipped"] += 1
+             continue
+@@ -297,8 +277,6 @@ def refresh_and_sync_cpa(
+     - 存活账号重新生成 CPA JSON 并上传
+     - 封禁账号标记为 disabled
+     """
+-    from core.registry import load_all
+-    load_all()
+     log = log_fn or logger.info
+     results = {"refreshed": 0, "uploaded": 0, "dead": 0, "skipped": 0, "error": 0}
+ 
+@@ -327,12 +305,9 @@ def refresh_and_sync_cpa(
+     except Exception:
+         cpa_api_url, cpa_api_key = "", ""
+ 
+-    # 获取所有活跃 chatgpt / chatgpt2 账号
++    # 获取所有活跃 chatgpt 账号
+     with Session(engine) as session:
+-        q = select(AccountModel).where(
+-            AccountModel.platform.in_([platform, "chatgpt2"])
+-            if platform == "chatgpt" else AccountModel.platform == platform
+-        )
++        q = select(AccountModel).where(AccountModel.platform == platform)
+         q = q.order_by(AccountModel.created_at.desc()).limit(limit)
+         accounts = session.exec(q).all()
+         graphs = load_account_graphs(session, [int(a.id) for a in accounts if a.id])
+@@ -351,19 +326,6 @@ def refresh_and_sync_cpa(
+             if c.get("scope") == "platform"
+         }
+         session_token = credentials.get("session_token", "")
+-        # chatgpt2 的 session_token 可能嵌在 cookies JSON 里
+-        if not session_token and acc.platform == "chatgpt2":
+-            cookies_raw = credentials.get("cookies", "")
+-            if cookies_raw:
+-                try:
+-                    import json as _json
+-                    cookies_dict = _json.loads(cookies_raw)
+-                    for key, val in cookies_dict.items():
+-                        if key.startswith("__Secure-next-auth.session-token"):
+-                            session_token = str(val or "")
+-                            break
+-                except Exception:
+-                    pass
+         if not session_token:
+             results["skipped"] += 1
+             continue
+diff --git a/frontend/src/pages/CodexConvert.tsx b/frontend/src/pages/CodexConvert.tsx
+deleted file mode 100644
+index a596540..0000000
+--- a/frontend/src/pages/CodexConvert.tsx
++++ /dev/null
+@@ -1,325 +0,0 @@
+-import { useEffect, useState, useCallback } from 'react'
+-import { apiFetch } from '@/lib/utils'
+-import { Badge } from '@/components/ui/badge'
+-import { Button } from '@/components/ui/button'
+-import { Card } from '@/components/ui/card'
+-import { Copy, Download, RefreshCw, Check, ChevronRight, Search, Loader2 } from 'lucide-react'
+-
+-interface CodexAccount {
+-  account_id: number
+-  email: string
+-  platform: string
+-  plan_type: string
+-  access_token_valid: boolean
+-  session_token_valid: boolean
+-  expires_at_unix: number
+-  auth_json: string
+-}
+-
+-interface AccountItem {
+-  id: number
+-  email: string
+-  platform: string
+-  display_status: string
+-  plan_state: string
+-  plan_name: string
+-  extra?: Record<string, any>
+-}
+-
+-function getPlatformLabel(p: string) {
+-  return p === 'chatgpt' ? 'ChatGPT' : p === 'chatgpt2' ? 'ChatGPT2' : p
+-}
+-
+-export default function CodexConvert() {
+-  const [accounts, setAccounts] = useState<AccountItem[]>([])
+-  const [search, setSearch] = useState('')
+-  const [selectedId, setSelectedId] = useState<number | null>(null)
+-  const [codexData, setCodexData] = useState<CodexAccount | null>(null)
+-  const [loading, setLoading] = useState(false)
+-  const [copied, setCopied] = useState(false)
+-  const [refreshing, setRefreshing] = useState(false)
+-  const [loadingList, setLoadingList] = useState(true)
+-  const [error, setError] = useState<string | null>(null)
+-
+-  // ── 加载账号列表 ──
+-  const loadAccounts = useCallback(async () => {
+-    setLoadingList(true)
+-    setError(null)
+-    try {
+-      const [c1, c2] = await Promise.all([
+-        apiFetch('/accounts?platform=chatgpt&page_size=200'),
+-        apiFetch('/accounts?platform=chatgpt2&page_size=200'),
+-      ])
+-      const all = [...(c1?.items || []), ...(c2?.items || [])]
+-      setAccounts(all)
+-    } catch (e: any) {
+-      console.error('加载账号列表失败', e)
+-      setError(e?.message || '加载账号列表失败')
+-    } finally {
+-      setLoadingList(false)
+-    }
+-  }, [])
+-
+-  useEffect(() => { loadAccounts() }, [])
+-
+-  // ── 选择账号 → 加载 Codex 数据 ──
+-  const selectAccount = async (id: number) => {
+-    setSelectedId(id)
+-    setCopied(false)
+-    setError(null)
+-    setLoading(true)
+-    try {
+-      const data = await apiFetch(`/accounts/${id}/codex`)
+-      setCodexData(data)
+-    } catch (e: any) {
+-      console.error('加载 Codex 数据失败', e)
+-      setError(e?.message || '加载失败')
+-      setCodexData(null)
+-    } finally {
+-      setLoading(false)
+-    }
+-  }
+-
+-  // ── 复制 auth.json ──
+-  const copyAuthJson = async () => {
+-    if (!codexData?.auth_json) return
+-    try {
+-      await navigator.clipboard.writeText(codexData.auth_json)
+-      setCopied(true)
+-      setTimeout(() => setCopied(false), 2000)
+-    } catch {
+-      // fallback
+-      const ta = document.createElement('textarea')
+-      ta.value = codexData.auth_json
+-      document.body.appendChild(ta)
+-      ta.select()
+-      document.execCommand('copy')
+-      document.body.removeChild(ta)
+-      setCopied(true)
+-      setTimeout(() => setCopied(false), 2000)
+-    }
+-  }
+-
+-  // ── 下载 auth.json ──
+-  const downloadAuthJson = () => {
+-    if (!codexData?.auth_json) return
+-    const blob = new Blob([codexData.auth_json], { type: 'application/json' })
+-    const url = URL.createObjectURL(blob)
+-    const a = document.createElement('a')
+-    a.href = url
+-    a.download = 'auth.json'
+-    a.click()
+-    URL.revokeObjectURL(url)
+-  }
+-
+-  // ── 刷新 Token ──
+-  const refreshToken = async () => {
+-    if (!codexData) return
+-    setRefreshing(true)
+-    try {
+-      await apiFetch(`/actions/${codexData.platform}/${codexData.account_id}/refresh_token`, {
+-        method: 'POST',
+-        body: JSON.stringify({ params: {} }),
+-      })
+-      // 刷新后重新加载 Codex 数据
+-      await selectAccount(codexData.account_id)
+-    } catch (e: any) {
+-      console.error('Token 刷新失败', e)
+-      alert('Token 刷新失败: ' + (e?.message || '未知错误'))
+-    } finally {
+-      setRefreshing(false)
+-    }
+-  }
+-
+-  // ── 过滤 ──
+-  const filtered = accounts.filter(a =>
+-    !search || a.email.toLowerCase().includes(search.toLowerCase())
+-  )
+-
+-  // ── 过期时间显示 ──
+-  const expiresLabel = (unix: number) => {
+-    if (!unix || unix <= 0) return '未知'
+-    const d = new Date(unix * 1000)
+-    const now = Date.now()
+-    const diff = d.getTime() - now
+-    if (diff < 0) return '已过期'
+-    const days = Math.floor(diff / 86400000)
+-    if (days < 1) return '今天到期'
+-    if (days < 30) return `${days} 天后到期`
+-    return d.toLocaleDateString('zh-CN')
+-  }
+-
+-  const expiresSoon = (unix: number) => {
+-    if (!unix) return false
+-    return unix * 1000 - Date.now() < 7 * 86400000
+-  }
+-
+-  return (
+-    <div className="flex h-full min-h-0 gap-0 overflow-hidden">
+-      {/* ── 左侧账号列表 ── */}
+-      <div className="flex w-80 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-card)]">
+-        <div className="px-4 py-3 border-b border-[var(--border)]">
+-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Codex 转换</h2>
+-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+-            选择账号生成 auth.json
+-          </p>
+-        </div>
+-        <div className="px-3 py-2">
+-          <div className="relative">
+-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
+-            <input
+-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-input)] py-1.5 pl-8 pr-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)]"
+-              placeholder="搜索邮箱..."
+-              value={search}
+-              onChange={e => setSearch(e.target.value)}
+-            />
+-          </div>
+-        </div>
+-        <div className="flex-1 overflow-y-auto">
+-          {loadingList ? (
+-            <div className="flex items-center justify-center py-8">
+-              <Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
+-            </div>
+-          ) : filtered.length === 0 ? (
+-            <p className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+-              {search ? '无匹配账号' : '暂无 ChatGPT 账号'}
+-            </p>
+-          ) : (
+-            filtered.map(acc => (
+-              <button
+-                key={acc.id}
+-                onClick={() => selectAccount(acc.id)}
+-                className={
+-                  `flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] border-b border-[var(--border-soft)] ` +
+-                  (selectedId === acc.id ? 'bg-[var(--accent-soft)] border-l-2 border-l-[var(--accent)]' : 'border-l-2 border-l-transparent')
+-                }
+-              >
+-                <div className="flex-1 min-w-0">
+-                  <div className="truncate font-medium text-[var(--text-primary)]">{acc.email}</div>
+-                  <div className="flex items-center gap-1.5 mt-0.5">
+-                    <span className="text-[10px] text-[var(--text-muted)]">{getPlatformLabel(acc.platform)}</span>
+-                    {acc.plan_name && (
+-                      <Badge variant="secondary" className="text-[9px] px-1 py-0">{acc.plan_name}</Badge>
+-                    )}
+-                  </div>
+-                </div>
+-                <ChevronRight className="h-3 w-3 shrink-0 text-[var(--text-muted)]" />
+-              </button>
+-            ))
+-          )}
+-        </div>
+-        <div className="px-4 py-2 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)]">
+-          {accounts.length} 个账号
+-        </div>
+-      </div>
+-
+-      {/* ── 右侧详情面板 ── */}
+-      <div className="flex-1 overflow-y-auto p-6">
+-        {!selectedId && (
+-          <div className="flex h-full items-center justify-center">
+-            <div className="text-center">
+-              <div className="text-4xl mb-3">🔑</div>
+-              <p className="text-sm text-[var(--text-muted)]">选择左侧账号查看 Codex auth.json</p>
+-              <p className="text-xs text-[var(--text-muted)] mt-1">
+-                支持 ChatGPT / ChatGPT2 平台
+-              </p>
+-            </div>
+-          </div>
+-        )}
+-
+-        {loading && (
+-          <div className="flex items-center justify-center py-12">
+-            <Loader2 className="h-6 w-6 animate-spin text-[var(--accent)]" />
+-          </div>
+-        )}
+-
+-        {error && !loading && (
+-          <div className="flex flex-col items-center justify-center py-12 gap-2">
+-            <p className="text-sm text-red-400">{error}</p>
+-            <Button size="sm" variant="outline" onClick={() => selectedId && selectAccount(selectedId)}>重试</Button>
+-          </div>
+-        )}
+-
+-        {codexData && !loading && !error && (
+-          <div className="space-y-4">
+-            {/* ── 账号信息 ── */}
+-            <Card className="p-4">
+-              <div className="flex flex-wrap items-start justify-between gap-3">
+-                <div>
+-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">{codexData.email}</h3>
+-                  <div className="flex items-center gap-2 mt-1">
+-                    <span className="text-xs text-[var(--text-muted)]">{getPlatformLabel(codexData.platform)}</span>
+-                    <Badge variant={codexData.plan_type && codexData.plan_type !== 'unknown' ? 'success' : 'secondary'}>
+-                      {codexData.plan_type || 'unknown'}
+-                    </Badge>
+-                  </div>
+-                </div>
+-                <div className="flex items-center gap-2">
+-                  <div className="flex items-center gap-1.5 text-xs">
+-                    <span className={`h-2 w-2 rounded-full ${codexData.access_token_valid ? 'bg-green-500' : 'bg-red-500'}`} />
+-                    <span className="text-[var(--text-muted)]">access_token</span>
+-                  </div>
+-                  <div className="flex items-center gap-1.5 text-xs">
+-                    <span className={`h-2 w-2 rounded-full ${codexData.session_token_valid ? 'bg-green-500' : 'bg-yellow-500'}`} />
+-                    <span className="text-[var(--text-muted)]">session</span>
+-                  </div>
+-                </div>
+-              </div>
+-              <div className="mt-2 text-xs text-[var(--text-muted)]">
+-                过期时间: <span className={expiresSoon(codexData.expires_at_unix) ? 'text-red-400 font-medium' : ''}>
+-                  {expiresLabel(codexData.expires_at_unix)}
+-                </span>
+-              </div>
+-            </Card>
+-
+-            {/* ── auth.json ── */}
+-            <Card className="p-4">
+-              <div className="flex items-center justify-between mb-3">
+-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">auth.json</h3>
+-                <div className="flex gap-2">
+-                  <Button size="sm" variant="outline" onClick={copyAuthJson} className="h-7 text-xs gap-1">
+-                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+-                    {copied ? '已复制' : '复制'}
+-                  </Button>
+-                  <Button size="sm" variant="outline" onClick={downloadAuthJson} className="h-7 text-xs gap-1">
+-                    <Download className="h-3 w-3" />
+-                    下载
+-                  </Button>
+-                </div>
+-              </div>
+-              <pre className="rounded-lg border border-[var(--border)] bg-[var(--bg-code)] p-4 text-xs font-mono text-[var(--text-code)] overflow-auto max-h-96 whitespace-pre-wrap break-all">
+-                {codexData.auth_json || '(空)'}
+-              </pre>
+-              <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+-                放到 <code className="text-[11px]">~/.codex/auth.json</code>（macOS/Linux）或{' '}
+-                <code className="text-[11px]">%USERPROFILE%\.codex\auth.json</code>（Windows）
+-              </p>
+-            </Card>
+-
+-            {/* ── Token 刷新 ── */}
+-            <Card className="p-4">
+-              <div className="flex items-center justify-between">
+-                <div>
+-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Token 状态</h3>
+-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+-                    如果 access_token 过期或即将过期，可以尝试刷新
+-                  </p>
+-                </div>
+-                <Button
+-                  size="sm"
+-                  variant="outline"
+-                  onClick={refreshToken}
+-                  disabled={refreshing || !codexData.access_token_valid}
+-                  className="h-7 text-xs gap-1"
+-                >
+-                  <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+-                  {refreshing ? '刷新中...' : '刷新 Token'}
+-                </Button>
+-              </div>
+-            </Card>
+-          </div>
+-        )}
+-      </div>
+-    </div>
+-  )
+-}
+diff --git a/platforms/chatgpt2/plugin.py b/platforms/chatgpt2/plugin.py
+deleted file mode 100644
+index f0710c2..0000000
+--- a/platforms/chatgpt2/plugin.py
++++ /dev/null
+@@ -1,183 +0,0 @@
+-"""ChatGPT2 浏览器注册平台插件。"""
+-from core.base_platform import BasePlatform, Account, AccountStatus, RegisterConfig
+-from core.base_mailbox import BaseMailbox
+-from core.registration import (
+-    BrowserRegistrationAdapter,
+-    BrowserRegistrationFlow,
+-    OtpSpec,
+-    RegistrationCapability,
+-    RegistrationContext,
+-    RegistrationResult,
+-)
+-from core.registry import register
+-
+-
+-@register
+-class ChatGPT2Platform(BasePlatform):
+-    name = "chatgpt2"
+-    display_name = "ChatGPT2"
+-    version = "1.0.0"
+-    supported_executors = ["headless", "headed"]
+-    supported_identity_modes = ["mailbox"]
+-    supported_oauth_providers = []
+-
+-    capabilities = [
+-        "query_state",
+-        "refresh_token",
+-    ]
+-
+-    def __init__(self, config: RegisterConfig = None, mailbox: BaseMailbox = None):
+-        super().__init__(config)
+-        self.mailbox = mailbox
+-
+-    # ── 有效性检查 ─────────────────────────────────────────────────────
+-    def check_valid(self, account: Account) -> bool:
+-        """检查账号是否有效（复用 ChatGPT 平台的订阅状态检测）。"""
+-        self._last_check_overview = {}
+-        try:
+-            from platforms.chatgpt.payment import fetch_subscription_status_details
+-
+-            class _A:
+-                pass
+-
+-            a = _A()
+-            extra = account.extra or {}
+-            a.access_token = extra.get("access_token") or account.token
+-            a.id_token = extra.get("id_token", "")
+-            a.cookies = extra.get("cookies", "")
+-            a.extra = extra
+-
+-            proxy = self.config.proxy if self.config else None
+-            details = fetch_subscription_status_details(a, proxy=proxy)
+-            status = details.get("status")
+-            overview = {
+-                "plan": status,
+-                "plan_name": status,
+-                "check_source": details.get("source"),
+-            }
+-            if isinstance(details.get("usage"), dict):
+-                overview["chatgpt_usage"] = details["usage"]
+-            self._last_check_overview = overview
+-            return status not in ("expired", "invalid", "banned", None)
+-        except Exception:
+-            return False
+-
+-    def get_last_check_overview(self) -> dict:
+-        return dict(getattr(self, "_last_check_overview", {}) or {})
+-
+-    # ── 浏览器注册适配器 ─────────────────────────────────────────────────
+-    def build_browser_registration_adapter(self):
+-        return BrowserRegistrationAdapter(
+-            result_mapper=self._map_result,
+-            browser_worker_builder=self._build_worker,
+-            browser_register_runner=self._run_worker,
+-            capability=RegistrationCapability(
+-                browser_mailbox_requires_email=True,
+-                browser_mailbox_requires_mailbox=True,
+-            ),
+-            otp_spec=OtpSpec(
+-                wait_message="等待邮箱验证码...",
+-                timeout=120,
+-            ),
+-        )
+-
+-    def _build_worker(self, ctx: RegistrationContext, artifacts):
+-        from platforms.chatgpt2.browser_register import ChatGPT2BrowserRegister
+-
+-        return ChatGPT2BrowserRegister(
+-            headless=(ctx.executor_type == "headless"),
+-            proxy=ctx.proxy,
+-            otp_callback=artifacts.otp_callback,
+-            log_fn=ctx.log,
+-        )
+-
+-    def _run_worker(self, worker, ctx: RegistrationContext, artifacts):
+-        return worker.run(
+-            email=ctx.identity.email or ctx.email or "",
+-            password=ctx.password or "",
+-        )
+-
+-    def _map_result(self, ctx: RegistrationContext, raw: dict) -> RegistrationResult:
+-        """将浏览器 worker 返回的 dict 映射为 RegistrationResult。"""
+-        return RegistrationResult(
+-            email=raw.get("email", "") or (ctx.identity.email or ""),
+-            password=raw.get("password", "") or (ctx.password or ""),
+-            user_id=raw.get("account_id", ""),
+-            token=raw.get("access_token", ""),
+-            status=AccountStatus.REGISTERED,
+-            extra={
+-                "access_token": raw.get("access_token", ""),
+-                "refresh_token": raw.get("refresh_token", ""),
+-                "id_token": raw.get("id_token", ""),
+-                "session_token": raw.get("session_token", ""),
+-                "workspace_id": raw.get("workspace_id", ""),
+-                "cookies": raw.get("cookies", ""),
+-                "profile": raw.get("profile", {}),
+-            },
+-        )
+-
+-    # ── 平台操作 ─────────────────────────────────────────────────────────
+-    def get_platform_actions(self) -> list:
+-        # 沿用 capability 系统生成 actions，保持与 capabilities 声明一致
+-        return self.get_capability_actions()
+-
+-    def _handle_query_state(self, account: Account, params: dict) -> dict:
+-        """查询账号状态 — 复用 ChatGPT 平台的完整查询。"""
+-        extra = account.extra or {}
+-        proxy = self.config.proxy if self.config else None
+-        from platforms.chatgpt.switch import fetch_chatgpt_account_state
+-
+-        data = fetch_chatgpt_account_state(
+-            access_token=extra.get("access_token") or account.token,
+-            session_token=extra.get("session_token", ""),
+-            cookies=extra.get("cookies", ""),
+-            proxy=proxy,
+-        )
+-        return {"ok": True, "data": data}
+-
+-    def _handle_refresh_token(self, account: Account, params: dict) -> dict:
+-        """刷新 Token — 复用 ChatGPT 平台的 TokenRefreshManager。"""
+-        import json as _json
+-
+-        extra = account.extra or {}
+-        proxy = self.config.proxy if self.config else None
+-
+-        # session_token 可能在 extra 里，也可能嵌在 cookies JSON 里
+-        session_token = extra.get("session_token", "")
+-        if not session_token:
+-            cookies_raw = extra.get("cookies", "")
+-            if cookies_raw:
+-                try:
+-                    cookies_dict = _json.loads(cookies_raw) if isinstance(cookies_raw, str) else cookies_raw
+-                    for key, val in cookies_dict.items():
+-                        if key.startswith("__Secure-next-auth.session-token"):
+-                            session_token = str(val or "")
+-                            break
+-                except (_json.JSONDecodeError, TypeError):
+-                    pass
+-
+-        class _A:
+-            pass
+-
+-        a = _A()
+-        a.email = account.email
+-        a.access_token = extra.get("access_token") or account.token
+-        a.refresh_token = extra.get("refresh_token", "")
+-        a.session_token = session_token
+-        a.cookies = extra.get("cookies", "")
+-        a.client_id = extra.get("client_id", "")
+-
+-        from platforms.chatgpt.token_refresh import TokenRefreshManager
+-
+-        manager = TokenRefreshManager(proxy_url=proxy)
+-        result = manager.refresh_account(a)
+-        if result.success:
+-            return {"ok": True, "data": {
+-                "access_token": result.access_token,
+-                "refresh_token": result.refresh_token
+
+[… truncated 32571 chars …]

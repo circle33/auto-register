@@ -106,21 +106,38 @@ class ChatGPTPlatform(BasePlatform):
 
     def _map_chatgpt_result(self, result: dict, *, password: str = "", user_id: str = "") -> RegistrationResult:
         _assert_complete_oauth_callback(result)
+
+        access_token = result.get("access_token", "")
+        account_id = user_id or result.get("account_id", "")
+
+        # 注册完成后尝试登录 Codex CLI
+        codex_auth_json = None
+        if access_token and account_id:
+            try:
+                from platforms.chatgpt.codex_cli import login_codex_cli
+                codex_auth_json = login_codex_cli(access_token, account_id)
+            except Exception:
+                pass
+
+        extra = {
+            "access_token": access_token,
+            "refresh_token": result.get("refresh_token", ""),
+            "id_token": result.get("id_token", ""),
+            "session_token": result.get("session_token", ""),
+            "workspace_id": result.get("workspace_id", ""),
+            "cookies": result.get("cookies", ""),
+            "profile": result.get("profile", {}),
+        }
+        if codex_auth_json and codex_auth_json.get("refresh_token"):
+            extra["codex_auth_json"] = codex_auth_json
+
         return RegistrationResult(
             email=result.get("email", ""),
             password=password or result.get("password", ""),
-            user_id=user_id or result.get("account_id", ""),
-            token=result.get("access_token", ""),
+            user_id=account_id,
+            token=access_token,
             status=AccountStatus.REGISTERED,
-            extra={
-                "access_token": result.get("access_token", ""),
-                "refresh_token": result.get("refresh_token", ""),
-                "id_token": result.get("id_token", ""),
-                "session_token": result.get("session_token", ""),
-                "workspace_id": result.get("workspace_id", ""),
-                "cookies": result.get("cookies", ""),
-                "profile": result.get("profile", {}),
-            },
+            extra=extra,
         )
 
     def _run_protocol_oauth(self, ctx) -> dict:
@@ -178,20 +195,34 @@ class ChatGPTPlatform(BasePlatform):
             access_token = result.access_token or ""
             refresh_token = result.refresh_token or ""
             session_token = result.session_token or ""
+            account_id = result.account_id or ""
+
+            # 注册完成后尝试登录 Codex CLI
+            codex_auth_json = None
+            if access_token and account_id:
+                try:
+                    from platforms.chatgpt.codex_cli import login_codex_cli
+                    codex_auth_json = login_codex_cli(access_token, account_id)
+                except Exception:
+                    pass
+
+            extra = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "id_token": result.id_token,
+                "session_token": session_token,
+                "workspace_id": result.workspace_id,
+            }
+            if codex_auth_json and codex_auth_json.get("refresh_token"):
+                extra["codex_auth_json"] = codex_auth_json
 
             return RegistrationResult(
                 email=result.email,
                 password=result.password or (ctx.password or ""),
-                user_id=result.account_id,
+                user_id=account_id,
                 token=access_token,
                 status=AccountStatus.REGISTERED,
-                extra={
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "id_token": result.id_token,
-                    "session_token": session_token,
-                    "workspace_id": result.workspace_id,
-                },
+                extra=extra,
             )
 
         return ProtocolMailboxAdapter(

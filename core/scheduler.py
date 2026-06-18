@@ -81,7 +81,9 @@ class Scheduler:
         for acc in accounts:
             try:
                 PlatformCls = get(acc.platform)
-                plugin = PlatformCls(config=RegisterConfig())
+                supported = getattr(PlatformCls, "supported_executors", ["protocol"])
+                executor_type = supported[0] if supported else "protocol"
+                plugin = PlatformCls(config=RegisterConfig(executor_type=executor_type))
                 with Session(engine) as s:
                     current = s.get(AccountModel, acc.id)
                     if not current:

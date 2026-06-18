@@ -233,7 +233,7 @@ class ChatGPT2BrowserRegister:
 
         launch_opts: dict = {"headless": self.headless}
         if self.proxy:
-            launch_opts["proxy"] = self.proxy
+            launch_opts["proxy"] = {"server": self.proxy}
             launch_opts["geoip"] = True
 
         with Camoufox(**launch_opts) as browser:

@@ -2,6 +2,9 @@ import os
 import sys
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # 把 stdout/stderr 强制成 utf-8（Windows 中文版默认是 gbk，碰到 ✗ ✓ 等
 # 非 GBK 字符会抛 UnicodeEncodeError 让进程崩溃）。errors="replace" 双保险，
 # 任何编码失败的字符替换成 ? 而不是抛错。
