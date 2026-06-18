@@ -24,6 +24,7 @@ class ChatGPT2Platform(BasePlatform):
     capabilities = [
         "query_state",
         "refresh_token",
+        "refresh_cookies",
     ]
 
     def __init__(self, config: RegisterConfig = None, mailbox: BaseMailbox = None):
@@ -99,21 +100,26 @@ class ChatGPT2Platform(BasePlatform):
 
     def _map_result(self, ctx: RegistrationContext, raw: dict) -> RegistrationResult:
         """将浏览器 worker 返回的 dict 映射为 RegistrationResult。"""
+        access_token = raw.get("access_token", "")
+        account_id = raw.get("account_id", "")
+
+        extra = {
+            "access_token": access_token,
+            "refresh_token": raw.get("refresh_token", ""),
+            "id_token": raw.get("id_token", ""),
+            "session_token": raw.get("session_token", ""),
+            "workspace_id": raw.get("workspace_id", ""),
+            "cookies": raw.get("cookies", ""),
+            "profile": raw.get("profile", {}),
+        }
+
         return RegistrationResult(
             email=raw.get("email", "") or (ctx.identity.email or ""),
             password=raw.get("password", "") or (ctx.password or ""),
-            user_id=raw.get("account_id", ""),
-            token=raw.get("access_token", ""),
+            user_id=account_id,
+            token=access_token,
             status=AccountStatus.REGISTERED,
-            extra={
-                "access_token": raw.get("access_token", ""),
-                "refresh_token": raw.get("refresh_token", ""),
-                "id_token": raw.get("id_token", ""),
-                "session_token": raw.get("session_token", ""),
-                "workspace_id": raw.get("workspace_id", ""),
-                "cookies": raw.get("cookies", ""),
-                "profile": raw.get("profile", {}),
-            },
+            extra=extra,
         )
 
     # ── 平台操作 ─────────────────────────────────────────────────────────
@@ -177,6 +183,135 @@ class ChatGPT2Platform(BasePlatform):
                 "refresh_token": result.refresh_token,
             }}
         return {"ok": False, "error": result.error_message}
+
+    def _handle_refresh_cookies(self, account: Account, params: dict) -> dict:
+        """刷新浏览器 cookies — 用 session_token 重新登录获取新鲜 cookies。"""
+        import json as _json
+        import time
+
+        extra = account.extra or {}
+        cookies_raw = extra.get("cookies", "")
+
+        # 从现有 cookies 提取 session_token（去掉 Playwright 添加的后缀）
+        session_token = extra.get("session_token", "")
+        if not session_token and cookies_raw:
+            try:
+                cookies_dict = _json.loads(cookies_raw) if isinstance(cookies_raw, str) else cookies_raw
+                for key, val in cookies_dict.items():
+                    if key.startswith("__Secure-next-auth.session-token"):
+                        session_token = str(val or "")
+                        break
+            except (_json.JSONDecodeError, TypeError):
+                pass
+
+        if not session_token:
+            return {"ok": False, "error": "未找到 session_token"}
+
+        proxy = self.config.proxy if self.config else None
+
+        from camoufox.sync_api import Camoufox
+
+        launch_opts: dict = {"headless": True}
+        if proxy:
+            launch_opts["proxy"] = {"server": proxy}
+            launch_opts["geoip"] = True
+
+        camoufox = Camoufox(**launch_opts)
+        try:
+            camoufox.start()
+            browser = camoufox.browser
+            page = browser.new_page()
+            page.set_default_timeout(20000)
+            page.on("pageerror", lambda err: None)
+
+            # 导航到 chatgpt.com
+            page.goto("https://chatgpt.com/", wait_until="domcontentloaded", timeout=20000)
+
+            # 设置 session_token
+            page.context.add_cookies([{
+                "name": "__Secure-next-auth.session-token",
+                "value": session_token,
+                "domain": ".chatgpt.com",
+                "path": "/",
+            }])
+
+            # 重新加载应用认证
+            page.goto("https://chatgpt.com/", wait_until="domcontentloaded", timeout=20000)
+            time.sleep(2)
+
+            # 检查登录状态（不在 /auth/login 且 textarea 存在）
+            current_url = page.url
+            is_login_page = "/auth/login" in current_url
+            has_textarea = page.locator("#prompt-textarea").count() > 0
+            if is_login_page or not has_textarea:
+                return {"ok": False, "error": "session_token 已过期，需要重新注册"}
+
+            # 提取所有 cookies
+            all_cookies = page.context.cookies()
+            cookies_dict = {c["name"]: c["value"] for c in all_cookies}
+            session_cookies = {c["name"]: c["value"] for c in all_cookies if c["name"].startswith("__Secure-")}
+
+            # 提取 access_token
+            access_token = ""
+            try:
+                resp = page.evaluate("""
+                    async () => {
+                        const r = await fetch('/api/auth/session');
+                        if (!r.ok) return null;
+                        const data = await r.json();
+                        return data.accessToken || '';
+                    }
+                """)
+                access_token = resp or ""
+            except Exception:
+                pass
+
+            cookies_json = _json.dumps(cookies_dict, ensure_ascii=False)
+
+            # 持久化到数据库
+            from sqlmodel import Session
+            from core.db import engine, AccountModel
+            from core.account_graph import patch_account_graph
+
+            credential_updates = {"cookies": cookies_json}
+            if access_token:
+                credential_updates["access_token"] = access_token
+
+            with Session(engine) as sess:
+                model = sess.get(AccountModel, account.user_id)
+                if not model:
+                    from sqlmodel import select as sql_select
+                    model = sess.exec(
+                        sql_select(AccountModel).where(
+                            AccountModel.email == account.email,
+                            AccountModel.platform == "chatgpt2",
+                        )
+                    ).first()
+                if model:
+                    patch_account_graph(
+                        sess, model,
+                        credential_updates=credential_updates,
+                        summary_updates={"last_cookie_refresh": _json.dumps({
+                            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                            "cookies_count": len(cookies_dict),
+                        })},
+                    )
+                    sess.commit()
+
+            return {
+                "ok": True,
+                "data": {
+                    "cookies_count": len(cookies_dict),
+                    "session_cookies_count": len(session_cookies),
+                    "access_token_refreshed": bool(access_token),
+                },
+            }
+
+        finally:
+            try:
+                camoufox.__exit__(None, None, None)
+            except Exception:
+                pass
 
     def _execute_platform_action(self, action_id: str, account: Account, params: dict) -> dict:
         # 所有标准 action 已通过 _handle_* 覆盖，这里只处理自定义

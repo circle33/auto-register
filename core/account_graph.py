@@ -55,7 +55,7 @@ PLATFORM_CREDENTIAL_TYPES: dict[str, str] = {
 
 PRIMARY_TOKEN_WRITE_KEYS: dict[str, str] = {
     "cursor": "session_token",
-    "chatgpt": "access_token",
+    "chatgpt2": "access_token",
     "kiro": "accessToken",
     "trae": "legacy_token",
     "blink": "firebase_refresh_token",

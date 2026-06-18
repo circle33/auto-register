@@ -24,12 +24,12 @@ OAUTH_PROVIDER_LABELS = {
 
 PLATFORM_SEEDS: list[dict] = [
     {
-        "platform_code": "chatgpt",
-        "display_name": "ChatGPT",
+        "platform_code": "chatgpt2",
+        "display_name": "ChatGPT2",
         "version": "1.0.0",
-        "supported_executors": ["protocol", "headless", "headed"],
-        "supported_identity_modes": ["mailbox", "oauth_browser"],
-        "supported_oauth_providers": ["google", "github", "microsoft"],
+        "supported_executors": ["headless", "headed"],
+        "supported_identity_modes": ["mailbox"],
+        "supported_oauth_providers": [],
     },
     {
         "platform_code": "cursor",

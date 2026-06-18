@@ -37,6 +37,6 @@ def test_trigger_expiry_warning_empty(client):
 
 
 def test_trigger_check_with_platform_filter(client):
-    resp = client.post("/api/lifecycle/check", json={"platform": "chatgpt", "limit": 5})
+    resp = client.post("/api/lifecycle/check", json={"platform": "chatgpt2", "limit": 5})
     assert resp.status_code == 200
     assert resp.json()["ok"] is True

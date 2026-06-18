@@ -12,7 +12,7 @@ from domain.accounts import AccountExportSelection, AccountRecord
 from infrastructure.accounts_repository import AccountsRepository
 
 
-CHATGPT_PLATFORM = "chatgpt"
+CHATGPT_PLATFORM = "chatgpt2"
 DEFAULT_CHATGPT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 
 
@@ -126,102 +126,40 @@ def _chatgpt_export_payload(item: AccountRecord) -> dict:
     }
 
 
-def _build_codex_synthetic_id_token(*, account_id: str, plan_type: str = "",
-                                     user_id: str = "", email: str = "",
-                                     expires_at_unix: int = 0) -> str:
-    """仿造 Codex 可识别的 id_token（alg:none，签名段为 synthetic）。
+def _store_codex_auth_json(account_id: int, auth_json_str: str) -> None:
+    """Store codex_auth_json as a platform credential for the account."""
+    from core.db import AccountModel, engine
+    from core.account_graph import patch_account_graph
+    from sqlmodel import Session
 
-    Codex 读取 id_token 时只 base64 解码 payload、不验签，
-    所以手工拼一个未签名 JWT 即可。
-    """
-    import json as _json
-    import base64 as _b64
-    import time as _time
-
-    if not account_id:
-        return ""
-
-    def _b64url(obj: dict) -> str:
-        raw = _json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode()
-        return _b64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-
-    now = int(_time.time())
-    exp = expires_at_unix if expires_at_unix > now else now + 90 * 24 * 3600
-    auth: dict = {"chatgpt_account_id": account_id}
-    if plan_type:
-        auth["chatgpt_plan_type"] = plan_type
-    if user_id:
-        auth["chatgpt_user_id"] = user_id
-        auth["user_id"] = user_id
-
-    payload: dict = {
-        "iat": now,
-        "exp": exp,
-        "https://api.openai.com/auth": auth,
-    }
-    if email:
-        payload["email"] = email
-
-    header = _b64url({"alg": "none", "typ": "JWT", "cpa_synthetic": True})
-    body = _b64url(payload)
-    return f"{header}.{body}.synthetic"
-
-
-def _build_codex_auth_json(*, access_token: str, account_id: str, plan_type: str = "",
-                           user_id: str = "", email: str = "", refresh_token: str = "",
-                           id_token: str = "", expires_at_unix: int = 0) -> str:
-    """构建 Codex CLI 可用的 auth.json 字符串。"""
-    import json as _json
-    from datetime import datetime, timezone as _timezone
-
-    resolved_id = id_token or _build_codex_synthetic_id_token(
-        account_id=account_id,
-        plan_type=plan_type,
-        user_id=user_id,
-        email=email,
-        expires_at_unix=expires_at_unix,
-    )
-    obj = {
-        "auth_mode": "chatgpt",
-        "OPENAI_API_KEY": None,
-        "tokens": {
-            "id_token": resolved_id,
-            "access_token": access_token,
-            "refresh_token": refresh_token or "",
-            "account_id": account_id,
-        },
-        "last_refresh": datetime.now(_timezone.utc).isoformat().replace("+00:00", "Z"),
-    }
-    return _json.dumps(obj, ensure_ascii=False, indent=2)
+    with Session(engine) as session:
+        model = session.get(AccountModel, account_id)
+        if not model:
+            return
+        patch_account_graph(
+            session,
+            model,
+            credential_updates={"codex_auth_json": auth_json_str},
+        )
+        session.commit()
 
 
 def _build_codex_auth_for_account(item: AccountRecord) -> dict:
-    """从 AccountRecord 提取字段，返回 Codex 转换结果。"""
+    """从 AccountRecord 返回 Codex 转换结果。
+
+    优先使用注册时通过 codex login 获得的 codex_auth_json，
+    如果没有则尝试调用 codex login 获取并存储。
+    """
     access_token = _credential_value(item, "access_token", "accessToken")
-    refresh_token = _credential_value(item, "refresh_token", "refreshToken")
-    id_token = _credential_value(item, "id_token", "idToken")
     account_id = item.user_id or _credential_value(item, "account_id", "chatgpt_account_id") or ""
 
-    # 从 JWT payload 提取 plan_type / user_id / expires
+    # JWT metadata for display
     payload = _decode_jwt_payload(access_token) if access_token else {}
-    auth_info = _chatgpt_auth_info(access_token, id_token)
+    auth_info = _chatgpt_auth_info(access_token, _credential_value(item, "id_token", "idToken"))
     plan_type = str(auth_info.get("chatgpt_plan_type", "") or "")
-    user_id = str(auth_info.get("chatgpt_user_id", "") or auth_info.get("user_id", "") or "")
-    email = str(auth_info.get("email", "") or item.email or "")
     expires_at_unix = int(payload.get("exp", 0) or 0)
 
-    auth_json = _build_codex_auth_json(
-        access_token=access_token,
-        account_id=account_id,
-        plan_type=plan_type,
-        user_id=user_id,
-        email=email,
-        refresh_token=refresh_token,
-        id_token=id_token,
-        expires_at_unix=expires_at_unix,
-    )
     # session_token 可能直接存在 credentials 里，也可能嵌在 cookies JSON 里
-    # cookie 名可能是 __Secure-next-auth.session-token 或带后缀 .0/.1 等
     session_token = _credential_value(item, "session_token", "sessionToken")
     if not session_token:
         cookies_raw = _credential_value(item, "cookies", "cookie")
@@ -235,6 +173,20 @@ def _build_codex_auth_for_account(item: AccountRecord) -> dict:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+    # 获取已存储的 codex_auth_json，没有则通过 codex login 获取
+    codex_auth_json_str = _credential_value(item, "codex_auth_json")
+
+    if not codex_auth_json_str:
+        if access_token and account_id:
+            try:
+                from platforms.chatgpt.codex_cli import login_codex_cli
+                auth_data = login_codex_cli(access_token, account_id)
+                if auth_data:
+                    codex_auth_json_str = json.dumps(auth_data, ensure_ascii=False, indent=2)
+                    _store_codex_auth_json(item.id, codex_auth_json_str)
+            except Exception:
+                pass
+
     return {
         "account_id": item.id,
         "email": item.email,
@@ -243,7 +195,7 @@ def _build_codex_auth_for_account(item: AccountRecord) -> dict:
         "access_token_valid": bool(access_token),
         "session_token_valid": bool(session_token),
         "expires_at_unix": expires_at_unix,
-        "auth_json": auth_json,
+        "auth_json": codex_auth_json_str or "",
     }
 
 

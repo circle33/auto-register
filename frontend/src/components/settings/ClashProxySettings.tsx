@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Save, RefreshCw, Wifi, WifiOff, Globe, Activity } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
-/*  Setting group card (copied from SettingsPage)                       */
+/*  Setting group card                                                 */
 /* ------------------------------------------------------------------ */
 function SettingGroup({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -16,6 +16,51 @@ function SettingGroup({ title, desc, children }: { title: string; desc?: string;
         {desc && <p className="mt-0.5 text-[13px] text-[var(--text-muted)]">{desc}</p>}
       </div>
       {children}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inline form fields (hoisted to avoid redefinition per render)     */
+/* ------------------------------------------------------------------ */
+function FormInput({
+  label, value, onChange, type = 'text', placeholder = '',
+}: {
+  label: string; value: string; onChange: (v: string) => void
+  type?: string; placeholder?: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3.5 border-b border-[var(--border)]/50 last:border-0">
+      <label className="shrink-0 text-sm font-medium text-[var(--text-secondary)]">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="control-surface max-w-[280px]"
+      />
+    </div>
+  )
+}
+
+function FormSelect({
+  label, value, onChange, options,
+}: {
+  label: string; value: string; onChange: (v: string) => void
+  options: [string, string][]
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3.5 border-b border-[var(--border)]/50 last:border-0">
+      <label className="shrink-0 text-sm font-medium text-[var(--text-secondary)]">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="control-surface max-w-[280px] appearance-none"
+      >
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>{l}</option>
+        ))}
+      </select>
     </div>
   )
 }
@@ -31,6 +76,7 @@ export default function ClashProxySettings() {
   const [delayTesting, setDelayTesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const mounted = useRef(true)
 
   const [form, setForm] = useState({
     clash_api_url: 'http://127.0.0.1:9097',
@@ -42,26 +88,22 @@ export default function ClashProxySettings() {
     clash_group: 'GLOBAL',
   })
 
-  useEffect(() => {
-    loadConfig()
-    loadStatus()
-  }, [])
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
   const loadConfig = async () => {
     try {
       const cfg = await apiFetch('/clash/config')
-      if (cfg) {
-        setForm((prev) => ({
-          ...prev,
-          clash_api_url: cfg.clash_api_url || prev.clash_api_url,
-          clash_secret: cfg.clash_secret || prev.clash_secret,
-          clash_proxy_host: cfg.clash_proxy_host || prev.clash_proxy_host,
-          clash_proxy_port: String(cfg.clash_proxy_port || prev.clash_proxy_port),
-          clash_strategy: cfg.clash_strategy || prev.clash_strategy,
-          clash_max_fails: String(cfg.clash_max_fails || prev.clash_max_fails),
-          clash_group: cfg.clash_group || prev.clash_group,
-        }))
-      }
+      if (!cfg || !mounted.current) return
+      setForm((prev) => ({
+        ...prev,
+        clash_api_url: cfg.clash_api_url || prev.clash_api_url,
+        clash_secret: cfg.clash_secret || prev.clash_secret,
+        clash_proxy_host: cfg.clash_proxy_host || prev.clash_proxy_host,
+        clash_proxy_port: String(cfg.clash_proxy_port || prev.clash_proxy_port),
+        clash_strategy: cfg.clash_strategy || prev.clash_strategy,
+        clash_max_fails: String(cfg.clash_max_fails || prev.clash_max_fails),
+        clash_group: cfg.clash_group || prev.clash_group,
+      }))
     } catch {
       // 使用默认值
     }
@@ -71,27 +113,37 @@ export default function ClashProxySettings() {
     setLoading(true)
     try {
       const s = await apiFetch('/clash/status')
+      if (!mounted.current) return
       setStatus(s)
       if (s.connected) {
         const n = await apiFetch('/clash/nodes?test_delay=false')
-        setNodes(n || [])
+        if (mounted.current) setNodes(n || [])
       }
     } catch {
-      setStatus(null)
+      if (mounted.current) setStatus(null)
     } finally {
-      setLoading(false)
+      if (mounted.current) setLoading(false)
     }
   }
+
+  useEffect(() => {
+    mounted.current = true
+    /* eslint-disable react-hooks/set-state-in-effect */
+    loadConfig()
+    loadStatus()
+    /* eslint-enable react-hooks/set-state-in-effect */
+    return () => { mounted.current = false }
+  }, [])
 
   const testConnection = async () => {
     setTesting(true)
     try {
       const r = await apiFetch('/clash/test', { method: 'POST' })
-      setStatus((prev: any) => ({ ...prev, ...r }))
+      if (mounted.current) setStatus((prev: any) => ({ ...prev, ...r }))
     } catch {
-      setStatus((prev: any) => ({ ...prev, connected: false }))
+      if (mounted.current) setStatus((prev: any) => ({ ...prev, connected: false }))
     } finally {
-      setTesting(false)
+      if (mounted.current) setTesting(false)
     }
   }
 
@@ -107,10 +159,10 @@ export default function ClashProxySettings() {
         }),
       })
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => { if (mounted.current) setSaved(false) }, 2000)
       loadStatus()
     } finally {
-      setSaving(false)
+      if (mounted.current) setSaving(false)
     }
   }
 
@@ -118,9 +170,9 @@ export default function ClashProxySettings() {
     setDelayTesting(true)
     try {
       const n = await apiFetch('/clash/nodes?test_delay=true')
-      setNodes(n || [])
+      if (mounted.current) setNodes(n || [])
     } finally {
-      setDelayTesting(false)
+      if (mounted.current) setDelayTesting(false)
     }
   }
 
@@ -136,36 +188,6 @@ export default function ClashProxySettings() {
     }
   }
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
-
-  const Input = ({ label, k, type = 'text', placeholder = '' }: any) => (
-    <div className="flex items-center justify-between gap-4 px-4 py-3.5 border-b border-[var(--border)]/50 last:border-0">
-      <label className="shrink-0 text-sm font-medium text-[var(--text-secondary)]">{label}</label>
-      <input
-        type={type}
-        value={(form as any)[k]}
-        onChange={(e) => set(k, e.target.value)}
-        placeholder={placeholder}
-        className="control-surface max-w-[280px]"
-      />
-    </div>
-  )
-
-  const Select = ({ label, k, options }: any) => (
-    <div className="flex items-center justify-between gap-4 px-4 py-3.5 border-b border-[var(--border)]/50 last:border-0">
-      <label className="shrink-0 text-sm font-medium text-[var(--text-secondary)]">{label}</label>
-      <select
-        value={(form as any)[k]}
-        onChange={(e) => set(k, e.target.value)}
-        className="control-surface max-w-[280px] appearance-none"
-      >
-        {options.map(([v, l]: any) => (
-          <option key={v} value={v}>{l}</option>
-        ))}
-      </select>
-    </div>
-  )
-
   const connected = status?.connected
   const nodeCount = status?.node_count ?? nodes.length
 
@@ -176,7 +198,7 @@ export default function ClashProxySettings() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              {connected === null ? (
+              {connected === undefined || connected === null ? (
                 <Activity className="h-5 w-5 text-[var(--text-muted)]" />
               ) : connected ? (
                 <Wifi className="h-5 w-5 text-emerald-400" />
@@ -184,7 +206,7 @@ export default function ClashProxySettings() {
                 <WifiOff className="h-5 w-5 text-red-400" />
               )}
               <span className="text-sm font-medium text-[var(--text-primary)]">
-                {connected === null ? '检测中...' : connected ? '已连接' : '未连接'}
+                {connected === undefined || connected === null ? '检测中...' : connected ? '已连接' : '未连接'}
               </span>
               {connected && <Badge variant="success">{status?.mode || 'running'}</Badge>}
               {connected && !status?.proxy_ok && (
@@ -222,11 +244,11 @@ export default function ClashProxySettings() {
       {/* Config */}
       <SettingGroup title="基本配置" desc="Clash 外部控制 API 地址与本地代理端口。">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] divide-y divide-[var(--border)]/50">
-          <Input label="Clash API URL" k="clash_api_url" placeholder="http://127.0.0.1:9097" />
-          <Input label="API Secret" k="clash_secret" placeholder="123456" />
-          <Input label="代理地址" k="clash_proxy_host" placeholder="127.0.0.1" />
-          <Input label="代理端口" k="clash_proxy_port" type="number" placeholder="7897" />
-          <Input label="节点分组" k="clash_group" placeholder="GLOBAL" />
+          <FormInput label="Clash API URL" value={form.clash_api_url} onChange={(v) => set('clash_api_url', v)} placeholder="http://127.0.0.1:9097" />
+          <FormInput label="API Secret" value={form.clash_secret} onChange={(v) => set('clash_secret', v)} placeholder="123456" />
+          <FormInput label="代理地址" value={form.clash_proxy_host} onChange={(v) => set('clash_proxy_host', v)} placeholder="127.0.0.1" />
+          <FormInput label="代理端口" value={form.clash_proxy_port} onChange={(v) => set('clash_proxy_port', v)} type="number" placeholder="7897" />
+          <FormInput label="节点分组" value={form.clash_group} onChange={(v) => set('clash_group', v)} placeholder="GLOBAL" />
         </div>
       </SettingGroup>
 
@@ -235,14 +257,14 @@ export default function ClashProxySettings() {
       {/* Strategy */}
       <SettingGroup title="均衡策略" desc="控制何时自动切换代理节点。">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] divide-y divide-[var(--border)]/50">
-          <Select label="策略" k="clash_strategy" options={[
+          <FormSelect label="策略" value={form.clash_strategy} onChange={(v) => set('clash_strategy', v)} options={[
             ['global', '全局（不自动切换）'],
             ['round_robin', '轮询（每次请求切换）'],
             ['lowest_delay', '低延迟（选最快的）'],
             ['failover', '故障转移（失败 N 次后切换）'],
           ]} />
           {form.clash_strategy === 'failover' && (
-            <Input label="故障阈值" k="clash_max_fails" type="number" placeholder="3" />
+            <FormInput label="故障阈值" value={form.clash_max_fails} onChange={(v) => set('clash_max_fails', v)} type="number" placeholder="3" />
           )}
         </div>
       </SettingGroup>

@@ -340,7 +340,7 @@ def fetch_chatgpt_account_state(
     proxy: str | None = None,
 ) -> dict:
     state = {
-        "platform": "chatgpt",
+        "platform": "chatgpt2",
         "desktop_app": "Codex",
         "session_token_present": bool(extract_session_token(session_token, cookies)),
         "quota_note": "ChatGPT 未公开稳定的剩余额度接口，当前返回订阅状态和账号 profile 信息。",

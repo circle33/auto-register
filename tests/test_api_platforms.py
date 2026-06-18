@@ -8,8 +8,8 @@ def test_list_platforms(client):
     data = resp.json()
     assert isinstance(data, list)
     names = [p["name"] for p in data]
-    # At least chatgpt should be loaded
-    assert "chatgpt" in names
+    # At least chatgpt2 should be loaded
+    assert "chatgpt2" in names
 
 
 def test_platform_has_required_fields(client):

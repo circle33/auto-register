@@ -54,7 +54,7 @@ class ImportRequest(BaseModel):
 
 
 class BatchExportRequest(BaseModel):
-    platform: str = "chatgpt"
+    platform: str = "chatgpt2"
     ids: list[int] = Field(default_factory=list)
     select_all: bool = False
     status_filter: Optional[str] = None

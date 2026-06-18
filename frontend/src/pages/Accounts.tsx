@@ -194,7 +194,7 @@ function RegisterModal({
     identity_mode_options: [],
     oauth_provider_options: [],
   })
-  const [configLoading, setConfigLoading] = useState(true)
+  const [configLoading, setConfigLoading] = useState(false)
   const [regCount, setRegCount] = useState(1)
   const [concurrency, setConcurrency] = useState(1)
   const [selection, setSelection] = useState({
@@ -1672,7 +1672,7 @@ export default function Accounts() {
               <Upload className="mr-1.5 h-3.5 w-3.5" />
               导入
             </Button>
-            {tab === 'chatgpt' ? (
+            {tab === 'chatgpt2' ? (
               <ExportMenu
                 platform={tab}
                 total={total}

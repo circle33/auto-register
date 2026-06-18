@@ -1,17 +1,14 @@
 import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { getPlatforms } from '@/lib/app-data'
 import { getAuthToken, setAuthToken, API, cn } from '@/lib/utils'
 import Dashboard from '@/pages/Dashboard'
 import Accounts from '@/pages/Accounts'
 import Register from '@/pages/Register'
 import SettingsPage from '@/pages/SettingsPage'
 import TaskHistory from '@/pages/TaskHistory'
-import CodexConvert from '@/pages/CodexConvert'
+import Chat2APIStatus from '@/pages/Chat2API'
 import UpdateBanner from '@/components/UpdateBanner'
 import {
-  ChevronRight,
-  FileCode,
   History,
   LayoutDashboard,
   Moon,
@@ -21,6 +18,7 @@ import {
   Users,
   PanelLeftClose,
   PanelLeft,
+  Server,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
@@ -31,8 +29,9 @@ type NavItem = { path: string; label: string; icon: any; exact?: boolean }
 
 const NAV_ITEMS: NavItem[] = [
   { path: '/', label: '总览', icon: LayoutDashboard, exact: true },
+  { path: '/accounts/chatgpt2', label: 'ChatGPT2', icon: Users },
   { path: '/history', label: '任务', icon: History },
-  { path: '/codex-convert', label: 'Codex 转换', icon: FileCode },
+  { path: '/chat2api', label: 'Chat2API', icon: Server },
 ]
 
 function Sidebar({
@@ -48,20 +47,6 @@ function Sidebar({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [platforms, setPlatforms] = useState<{ key: string; label: string }[]>([])
-  const [accountsOpen, setAccountsOpen] = useState(location.pathname.startsWith('/accounts'))
-
-  useEffect(() => {
-    getPlatforms()
-      .then((data) => setPlatforms((data || []).map((p: any) => ({ key: p.name, label: p.display_name }))))
-      .catch(() => setPlatforms([]))
-  }, [])
-
-  useEffect(() => {
-    if (location.pathname.startsWith('/accounts')) setAccountsOpen(true)
-  }, [location.pathname])
-
-  const isAccounts = location.pathname.startsWith('/accounts')
   const isSettings = location.pathname === '/settings'
 
   const navLinkClass = (active: boolean) =>
@@ -111,49 +96,6 @@ function Sidebar({
             </NavLink>
           )
         })}
-
-        {/* Accounts with sub-items */}
-        <div>
-          <button
-            onClick={() => {
-              if (collapsed) {
-                navigate('/accounts')
-              } else {
-                setAccountsOpen(!accountsOpen)
-              }
-            }}
-            className={cn(navLinkClass(isAccounts), 'w-full')}
-            title={collapsed ? '账号' : undefined}
-          >
-            <Users className={iconClass(isAccounts)} />
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left">账号</span>
-                <ChevronRight className={cn('h-3 w-3 text-[var(--text-muted)] transition-transform duration-150', accountsOpen && 'rotate-90')} />
-              </>
-            )}
-          </button>
-          {!collapsed && accountsOpen && (
-            <div className="ml-[21px] mt-0.5 space-y-px border-l border-[var(--border)] pl-3">
-              {platforms.map((p) => (
-                <NavLink
-                  key={p.key}
-                  to={`/accounts/${p.key}`}
-                  className={({ isActive }) =>
-                    cn(
-                      'block rounded-md px-2.5 py-1.5 text-[13px] transition-colors',
-                      isActive
-                        ? 'text-[var(--text-primary)] font-medium bg-[var(--bg-hover)]'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                    )
-                  }
-                >
-                  {p.label}
-                </NavLink>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Divider */}
         {!collapsed && <div className="!my-2 mx-1 border-t border-[var(--border)]" />}
@@ -268,7 +210,7 @@ function Shell({
             <Route path="/accounts/:platform" element={<Accounts />} />
             <Route path="/register" element={<Register />} />
             <Route path="/history" element={<TaskHistory />} />
-            <Route path="/codex-convert" element={<CodexConvert />} />
+            <Route path="/chat2api" element={<Chat2APIStatus />} />
             <Route path="/settings" element={<SettingsPage theme={theme} setTheme={setTheme} />} />
           </Routes>
         </div>

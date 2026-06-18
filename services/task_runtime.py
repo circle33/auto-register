@@ -24,6 +24,7 @@ class TaskRuntime:
         self._dispatcher: threading.Thread | None = None
         self._workers: dict[str, TaskWorkerState] = {}
         self._lock = threading.Lock()
+        self._wake_event = threading.Event()
 
     def start(self) -> None:
         with self._lock:
@@ -41,8 +42,7 @@ class TaskRuntime:
         print("[TaskRuntime] 停止中")
 
     def wake_up(self) -> None:
-        # Polling loop wakes quickly already; this method exists as an explicit runtime hook.
-        return
+        self._wake_event.set()
 
     def _loop(self) -> None:
         while self._running:
@@ -81,7 +81,8 @@ class TaskRuntime:
                     busy_account_keys.update(set(task_info.get("account_keys") or []))
                 worker.start()
                 available_slots -= 1
-            time.sleep(self.poll_interval)
+            self._wake_event.wait(self.poll_interval)
+            self._wake_event.clear()
         self._reap_workers()
 
     def _run_task(self, task_id: str) -> None:

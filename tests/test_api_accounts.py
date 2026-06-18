@@ -4,7 +4,7 @@ from __future__ import annotations
 
 def _create_account(client, **overrides):
     payload = {
-        "platform": "chatgpt",
+        "platform": "chatgpt2",
         "email": "test@example.com",
         "password": "TestPass123!",
         **overrides,
@@ -16,7 +16,7 @@ def test_create_account(client):
     resp = _create_account(client)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["platform"] == "chatgpt"
+    assert data["platform"] == "chatgpt2"
     assert data["email"] == "test@example.com"
     assert "id" in data
 
@@ -72,12 +72,12 @@ def test_update_account(client):
 
 
 def test_filter_accounts_by_platform(client):
-    _create_account(client, platform="chatgpt", email="a@test.com")
-    _create_account(client, platform="chatgpt", email="b@test.com")
-    resp = client.get("/api/accounts", params={"platform": "chatgpt"})
+    _create_account(client, platform="chatgpt2", email="a@test.com")
+    _create_account(client, platform="chatgpt2", email="b@test.com")
+    resp = client.get("/api/accounts", params={"platform": "chatgpt2"})
     data = resp.json()
     assert data["total"] == 2
-    assert data["items"][0]["platform"] == "chatgpt"
+    assert data["items"][0]["platform"] == "chatgpt2"
 
 
 def test_account_stats(client):
