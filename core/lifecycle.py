@@ -128,8 +128,8 @@ def refresh_expiring_tokens(
             results["skipped"] += 1
             continue
 
-        # Currently only ChatGPT has token refresh support
-        if acc.platform != "chatgpt":
+        # Currently only ChatGPT2 has token refresh support
+        if acc.platform != "chatgpt2":
             results["skipped"] += 1
             continue
 
@@ -268,7 +268,7 @@ def flag_expiring_trials(
 
 def refresh_and_sync_cpa(
     *,
-    platform: str = "chatgpt",
+    platform: str = "chatgpt2",
     limit: int = 200,
     log_fn=None,
 ) -> dict[str, int]:

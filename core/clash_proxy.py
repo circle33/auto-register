@@ -32,7 +32,7 @@ DEFAULT_PROXY_PORT = 7897
 DEFAULT_STRATEGY = "global"
 DEFAULT_MAX_FAILS = 3
 DEFAULT_GROUP = "GLOBAL"
-DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
+DELAY_TEST_URL = "https://chatgpt.com"
 DELAY_TIMEOUT_MS = 3000
 
 

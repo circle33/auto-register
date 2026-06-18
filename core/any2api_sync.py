@@ -163,12 +163,12 @@ def push_account_to_any2api(account: Any, *, log_fn=None) -> bool:
     client = Any2ApiClient(base_url, password)
 
     try:
-        if platform == "chatgpt":
+        if platform == "chatgpt2":
             token = extra.get("access_token", "") or getattr(account, "token", "")
             if token:
                 ok = client.push_chatgpt(token)
                 if ok:
-                    log(f"  [Any2API] ✓ ChatGPT 账号已推送")
+                    log(f"  [Any2API] ✓ ChatGPT2 账号已推送")
                 return ok
 
         else:

@@ -299,16 +299,18 @@ def mark_incomplete_tasks_interrupted() -> None:
         tasks = session.exec(
             select(TaskModel).where(TaskModel.status.in_(non_terminal))
         ).all()
+        task_ids = []
         for task in tasks:
+            task_ids.append(task.id)
             task.status = TASK_STATUS_INTERRUPTED
             task.error = task.error or "任务在服务重启后被中断"
             task.finished_at = _utcnow()
             task.updated_at = _utcnow()
             session.add(task)
         session.commit()
-    for task in tasks:
+    for task_id in task_ids:
         append_task_event(
-            task.id,
+            task_id,
             "任务在服务重启后被标记为中断",
             event_type="state",
             level="warning",

@@ -43,13 +43,13 @@ class TestPushAccountToAny2api:
         # When any2api_url is not configured, should silently return False
         with patch("core.any2api_sync._get_any2api_config", return_value=("", "")):
             account = MagicMock()
-            account.platform = "chatgpt"
+            account.platform = "chatgpt2"
             assert push_account_to_any2api(account) is False
 
     def test_chatgpt_push(self):
         with patch("core.any2api_sync._get_any2api_config", return_value=("http://localhost:8099", "changeme")):
             account = MagicMock()
-            account.platform = "chatgpt"
+            account.platform = "chatgpt2"
             account.email = "test@test.com"
             account.token = "access-token"
             account.extra = {"access_token": "access-token"}

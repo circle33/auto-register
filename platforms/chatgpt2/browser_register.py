@@ -258,7 +258,7 @@ class ChatGPT2BrowserRegister:
                 _log("2. 点击登录按钮...", self.log_fn)
                 self._click_login_button(page)
 
-                # ── 3. 等待 10s ───────────────────────────────────────
+                # ── 3. 等待 3s ───────────────────────────────────────
                 _log(f"3. 等待 {LOGIN_FORM_WAIT}s...", self.log_fn)
                 time.sleep(LOGIN_FORM_WAIT)
 
@@ -276,7 +276,7 @@ class ChatGPT2BrowserRegister:
                     _log(f"未跳转到 {EMAIL_VERIFICATION_URL}，当前: {page.url}", self.log_fn)
                     # 也可能已经在正确的页面
                 try:
-                    page.wait_for_load_state("networkidle", timeout=NETWORK_IDLE_TIMEOUT * 1000)
+                    page.wait_for_load_state("load", timeout=NETWORK_IDLE_TIMEOUT * 1000)
                 except PlaywrightTimeout:
                     pass
 
@@ -293,7 +293,7 @@ class ChatGPT2BrowserRegister:
                 if not _wait_for_url_contains(page, ABOUT_YOU_URL):
                     _log(f"未跳转到 {ABOUT_YOU_URL}，当前: {page.url}", self.log_fn)
                 try:
-                    page.wait_for_load_state("networkidle", timeout=NETWORK_IDLE_TIMEOUT * 1000)
+                    page.wait_for_load_state("load", timeout=NETWORK_IDLE_TIMEOUT * 1000)
                 except PlaywrightTimeout:
                     pass
 
@@ -308,7 +308,7 @@ class ChatGPT2BrowserRegister:
                 if not _wait_for_url_contains(page, CHATGPT_APP):
                     _log(f"未跳回 chatgpt.com，当前: {page.url}", self.log_fn)
                 try:
-                    page.wait_for_load_state("networkidle", timeout=NETWORK_IDLE_TIMEOUT * 1000)
+                    page.wait_for_load_state("load", timeout=NETWORK_IDLE_TIMEOUT * 1000)
                 except PlaywrightTimeout:
                     pass
 

@@ -7,7 +7,7 @@ import { Users, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: 'text-emerald-400',
+  chatgpt2: 'text-emerald-400',
 }
 
 const STATUS_VARIANT: Record<string, any> = {
@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [desktopStates, setDesktopStates] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(false)
-  const desktopPlatforms = ['chatgpt']
+  const desktopPlatforms = ['chatgpt2']
 
   const load = async () => {
     setLoading(true)
@@ -53,7 +53,7 @@ export default function Dashboard() {
       setStats(data)
       const desktopEntries = await Promise.all(
         (platforms || [])
-          .filter((item: any) => ['chatgpt'].includes(item.name))
+          .filter((item: any) => ['chatgpt2'].includes(item.name))
           .map(async (item: any) => {
             const state = await apiFetch(`/platforms/${item.name}/desktop-state`).catch(() => ({ available: false }))
             return [item.name, { ...state, platform: item.name, display_name: item.display_name }] as const

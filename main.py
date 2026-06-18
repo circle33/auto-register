@@ -53,6 +53,7 @@ from api.task_commands import router as task_commands_router
 from api.task_logs import router as task_logs_router
 from api.tasks import router as tasks_router
 from api.clash import router as clash_router
+from api.chat2api_proxy import router as chat2api_proxy_router
 from core.db import init_db
 from core.registry import load_all
 from providers.registry import load_all as load_providers
@@ -74,6 +75,9 @@ async def lifespan(app: FastAPI):
     start_async()
     from core.lifecycle import lifecycle_manager
     lifecycle_manager.start()
+    from core.config_store import config_store
+    if config_store.get("chat2api_enabled", "false").lower() == "true":
+        print(f"[OK] Chat2API proxy enabled (/v1/models, /v1/chat/completions)")
     yield
     from core.lifecycle import lifecycle_manager as _lifecycle_manager
     _lifecycle_manager.stop()
@@ -112,6 +116,7 @@ app.include_router(task_commands_router, prefix="/api")
 app.include_router(task_logs_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
 app.include_router(clash_router, prefix="/api")
+app.include_router(chat2api_proxy_router)
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_static_dir):

@@ -26,7 +26,7 @@ def test_stats_by_day_empty(client):
 
 
 def test_stats_by_day_with_platform_filter(client):
-    resp = client.get("/api/stats/by-day", params={"days": 7, "platform": "chatgpt"})
+    resp = client.get("/api/stats/by-day", params={"days": 7, "platform": "chatgpt2"})
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
 
@@ -38,6 +38,6 @@ def test_stats_errors_empty(client):
 
 
 def test_stats_errors_with_platform_filter(client):
-    resp = client.get("/api/stats/errors", params={"days": 7, "platform": "chatgpt"})
+    resp = client.get("/api/stats/errors", params={"days": 7, "platform": "chatgpt2"})
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)

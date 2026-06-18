@@ -28,9 +28,9 @@ NAME_INPUT_FALLBACK = 'input[name*="name" i], input[id*="name" i], input[autocom
 SUBMIT_BUTTON_FALLBACK = 'button[type="submit"]'
 
 # ── 等待时间（秒） ──────────────────────────────────────────────────────────
-LOGIN_FORM_WAIT = 10
-NETWORK_IDLE_TIMEOUT = 30
-PAGE_LOAD_TIMEOUT = 30
+LOGIN_FORM_WAIT = 3
+NETWORK_IDLE_TIMEOUT = 10
+PAGE_LOAD_TIMEOUT = 15
 OTP_POLL_TIMEOUT = 120
 ELEMENT_WAIT_TIMEOUT = 15
 
