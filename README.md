@@ -1,6 +1,13 @@
 # gpt-auto-register
 
-ChatGPT 自动化账号注册 · 协议 / 浏览器双模式 · Python FastAPI + React
+ChatGPT2 自动化账号注册 + Chat2API 代理 · Python FastAPI + React
+
+## 功能
+
+- **自动注册** — Camoufox 浏览器自动化完成 ChatGPT 邮箱验证码注册全流程
+- **Chat2API** — 将注册的 gpt2 账号暴露为 OpenAI 兼容 API (`/v1/chat/completions`)
+- **账号管理** — 注册 / 导入 / 导出 / 状态检测 / token 刷新 / cookie 续期
+- **代理服务** — Clash 集成，自动切换节点
 
 ## 技术栈
 
@@ -8,52 +15,80 @@ ChatGPT 自动化账号注册 · 协议 / 浏览器双模式 · Python FastAPI +
 |------|------|
 | 后端 | Python 3.12 + FastAPI + SQLModel (SQLite) |
 | 前端 | React 19 + TypeScript + Vite + Tailwind CSS 4 + Radix UI |
-| 浏览器 | Playwright + Camoufox + Patchright |
+| 浏览器 | Playwright + Camoufox |
 | HTTP | curl_cffi (TLS 指纹伪装) |
 
 ## 项目结构
 
 ```
-├── main.py                 # FastAPI 入口 + SPA fallback
-├── api/                    # HTTP 路由层
-├── application/            # 应用服务层
-├── domain/                 # 领域模型 (slots dataclasses)
-├── infrastructure/         # SQLModel 仓储
-├── core/                   # 平台基类、auth、captcha、mailbox、scheduler
-├── platforms/chatgpt/      # ChatGPT 平台插件 (唯一平台)
-├── providers/              # captcha / mailbox / proxy / sms 驱动
-├── services/               # turnstile solver、task runtime
-├── frontend/               # Vite + React SPA → static/
-├── customer_portal_api/    # C 端独立 API
-└── tests/                  # pytest
+├── main.py                     # FastAPI 入口 + SPA fallback
+├── api/                        # HTTP 路由层
+│   ├── chat2api_proxy.py       # Chat2API 代理 (/v1/*)
+│   ├── clash.py                # Clash 代理管理
+│   └── ...                     # 账号 / 任务 / 平台等路由
+├── application/                # 应用服务层
+├── domain/                     # 领域模型 (slots dataclasses)
+├── infrastructure/             # SQLModel 仓储
+├── core/                       # 平台基类、auth、captcha、mailbox、scheduler
+├── platforms/
+│   ├── chatgpt/                # ChatGPT 共享模块 (token refresh / switch / payment)
+│   └── chatgpt2/               # ChatGPT2 浏览器注册插件
+├── providers/                  # captcha / mailbox 驱动
+├── services/
+│   ├── chat2api_proxy.py       # Chat2API 代理核心 (浏览器操作 ChatGPT)
+│   ├── task_runtime.py         # 任务调度器
+│   └── ...                     # turnstile solver
+├── frontend/                   # Vite + React SPA → static/
+├── customer_portal_api/        # C 端独立 API
+├── reference/                  # 参考 Chat2API 项目
+├── tests/                      # pytest
+└── start.sh                    # 启动脚本 (自动停旧启新)
 ```
 
 ## 快速开始
 
 ```bash
-git clone <repo-url> gpt-auto-register && cd gpt-auto-register
-
-# Python 后端
+# 后端
 uv sync
-uv run python main.py                    # :8000
+./start.sh h                     # :8000
 
-# 前端开发
-pnpm --prefix frontend dev               # :5173
-pnpm --prefix frontend build             # tsc + vite → static/
+# 前端
+pnpm --prefix frontend dev       # :5173
 
 # 测试
 uv run pytest
 ```
 
-## 常用命令
+## Chat2API
+
+注册 gpt2 账号后，开启 Chat2API 代理：
 
 ```bash
-uv sync                                  # 安装 Python 依赖
-uv run python main.py                    # 启动后端
-uv run pytest                            # 运行测试
-pnpm --prefix frontend dev               # Vite 开发服务器
-pnpm --prefix frontend build             # 构建前端
-pnpm --prefix frontend lint              # ESLint
+# 启用
+curl -X PUT http://localhost:8000/api/config \
+  -d '{"data": {"chat2api_enabled": "true"}}'
+
+# 模型列表
+curl http://localhost:8000/v1/models
+
+# 聊天
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"hello"}],"stream":false}'
+
+# 刷新过期 cookies
+curl -X POST http://localhost:8000/api/chat2api/refresh-cookies
+
+# 查看状态
+curl http://localhost:8000/api/chat2api/status
+```
+
+可选 API Key 保护：
+
+```bash
+curl -X PUT http://localhost:8000/api/config \
+  -d '{"data": {"chat2api_api_key": "sk-your-key"}}'
+# 请求携带: -H "Authorization: Bearer sk-your-key"
 ```
 
 ## 注意事项
@@ -61,5 +96,4 @@ pnpm --prefix frontend lint              # ESLint
 - `static/` 是前端构建产物，不要手动编辑
 - `core/version.py` 由 Dockerfile 构建时注入 `APP_VERSION`
 - `.env` 已 gitignore，直接使用环境变量
-- `conftest.py` 在 app import 前替换 DB engine 为临时 SQLite
-- `platforms/` 仅保留 ChatGPT；`reference/` 为原始多平台参考代码
+- Chat2API 使用 Camoufox 浏览器操作 ChatGPT 页面，首次请求需 30s+ 启动浏览器
